@@ -625,6 +625,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = beschluenige;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "beschluenige reads heart rate to record data during hockey shifts.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "beschluenige saves workout data to track hockey sessions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "beschluenige uses your location to track skating speed during hockey shifts.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = net.lnor.beschluenige;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -662,6 +663,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = beschluenige;
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "beschluenige reads heart rate to record data during hockey shifts.";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "beschluenige saves workout data to track hockey sessions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "beschluenige uses your location to track skating speed during hockey shifts.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = net.lnor.beschluenige;
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -7,6 +7,7 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
     private var fallbackTimer: Timer?
     private var timeoutTimer: Timer?
     private var receivedRealSample = false
+    var onFallbackActivated: (@Sendable () -> Void)?
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "MockHR"
@@ -50,6 +51,7 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
         #endif
 
         logger.warning("No heart rate samples received after 10s -- falling back to simulated data")
+        onFallbackActivated?()
 
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
             guard let self, let handler = sampleHandler else { return }

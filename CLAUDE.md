@@ -32,23 +32,61 @@ The watch app reads heart rate from HealthKit to detect shift boundaries (on-ice
 
 - Use ASCII only in comments and log messages (no Unicode arrows, em dashes, etc.)
 
-## Heart rate collection
+## Sensor data collection
 
-Heart rate is collected using `HKWorkoutSession` + `HKAnchoredObjectQuery`. The workout session keeps the optical HR sensor running continuously (~1 sample every 1-5s), which is the highest frequency available via any public API. The anchored object query captures every individual `HKQuantitySample` with its exact timestamp.
+All sensor data follows the same provider pattern: a protocol with `startMonitoring(handler:)` and `stopMonitoring()`, a real implementation, and a mock wrapper that falls back to simulated data after 10 seconds on the simulator.
 
-Heart rate delivery is abstracted behind a `HeartRateProvider` protocol. `HealthKitHeartRateProvider` is the real implementation. `MockHeartRateProvider` wraps it and falls back to simulated data if no real samples arrive within 10 seconds (simulator only).
+### Heart rate
+
+Collected using `HKWorkoutSession` + `HKAnchoredObjectQuery`. The workout session keeps the optical HR sensor running continuously (~1 sample every 1-5s). The anchored object query captures every `HKQuantitySample` with its exact timestamp.
 
 Key files:
 - `HeartRateProvider.swift` -- protocol
 - `HealthKitHeartRateProvider.swift` -- real HealthKit implementation
 - `MockHeartRateProvider.swift` -- simulator fallback wrapper
-- `WorkoutManager.swift` -- manages recording state, receives samples via provider
-- `HeartRateSample.swift` -- simple struct: timestamp + BPM
-- `RecordingSession.swift` -- holds samples, serializes to CSV
+- `HeartRateSample.swift` -- struct: timestamp + BPM
+
+### GPS location
+
+Collected using `CLLocationManager` with `desiredAccuracy = kCLLocationAccuracyBest` and `distanceFilter = kCLDistanceFilterNone`. Runs independently of the HealthKit workout session. Background updates enabled via `allowsBackgroundLocationUpdates` (supported by `workout-processing` and `location-updates` background modes).
+
+Key files:
+- `LocationProvider.swift` -- protocol
+- `CoreLocationProvider.swift` -- real Core Location implementation
+- `MockLocationProvider.swift` -- simulator fallback wrapper
+- `LocationSample.swift` -- struct: timestamp, lat, lon, altitude, accuracies, speed, course
+
+### Accelerometer
+
+Collected using `CMMotionManager` at 100 Hz (`accelerometerUpdateInterval = 0.01`). Samples are batched (100 per flush) before dispatch to reduce overhead. Core Motion timestamps are boot-relative; they are converted to wall clock time using a delta computed at start.
+
+Key files:
+- `MotionProvider.swift` -- protocol
+- `CoreMotionProvider.swift` -- real Core Motion implementation
+- `MockMotionProvider.swift` -- simulator fallback wrapper
+- `AccelerometerSample.swift` -- struct: timestamp, x, y, z
+
+### Orchestration
+
+- `WorkoutManager.swift` -- manages recording state, receives samples from all three providers
+- `RecordingSession.swift` -- holds all sample arrays, serializes to unified CSV
 
 ## Data export
 
-CSV format: `timestamp,bpm` (unix seconds).
+CSV format: unified file with a `type` column discriminating sample types.
+
+```
+type,timestamp,bpm,lat,lon,alt,h_acc,v_acc,speed,course,ax,ay,az
+H,1706812345.678,120.0,,,,,,,,,,
+G,1706812345.700,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,,,
+A,1706812345.710,,,,,,,,,0.012,-0.023,0.981
+```
+
+- `H` = heart rate (bpm column populated)
+- `G` = GPS location (lat/lon/alt/accuracy/speed/course columns populated)
+- `A` = accelerometer (ax/ay/az columns populated)
+- Rows are sorted by timestamp at export time
+- Timestamps are unix seconds with sub-second precision
 
 Export path: Watch -> iPhone via `WCSession.transferFile` -> iPhone saves to Documents -> user shares via `ShareLink`.
 
@@ -61,9 +99,9 @@ Key files:
 
 ## Project configuration
 
-HealthKit entitlements and workout-processing background mode are configured via:
-- `beschluenige Watch App/beschluenige Watch App.entitlements`
-- `beschluenige-Watch-App-Info.plist`
-- `INFOPLIST_KEY_NSHealthShareUsageDescription` and `INFOPLIST_KEY_NSHealthUpdateUsageDescription` in the watch app build settings
+HealthKit entitlements, background modes, and usage descriptions are configured via:
+- `beschluenige Watch App/beschluenige Watch App.entitlements` -- HealthKit entitlement
+- `beschluenige-Watch-App-Info.plist` -- `workout-processing` and `location-updates` background modes
+- Build settings: `INFOPLIST_KEY_NSHealthShareUsageDescription`, `INFOPLIST_KEY_NSHealthUpdateUsageDescription`, `INFOPLIST_KEY_NSLocationWhenInUseUsageDescription`
 
 The project uses `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` and `SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES`, so test files need explicit `import Foundation`.

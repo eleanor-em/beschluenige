@@ -4,15 +4,46 @@ struct RecordingSession: Sendable {
     let startDate: Date
     var endDate: Date?
     var samples: [HeartRateSample] = []
+    var locationSamples: [LocationSample] = []
+    var accelerometerSamples: [AccelerometerSample] = []
 
     var sampleCount: Int { samples.count }
+    var totalSampleCount: Int {
+        samples.count + locationSamples.count + accelerometerSamples.count
+    }
 
     func csvData() -> Data {
-        var csv = "timestamp,bpm\n"
-        for sample in samples {
-            let unix = sample.timestamp.timeIntervalSince1970
-            csv += "\(unix),\(sample.beatsPerMinute)\n"
+        var csv = "type,timestamp,bpm,lat,lon,alt,h_acc,v_acc,speed,course,ax,ay,az\n"
+
+        // Build (type, timestamp, row-string) tuples for sorting
+        var rows: [(timestamp: Double, line: String)] = []
+
+        for s in samples {
+            let t = s.timestamp.timeIntervalSince1970
+            rows.append((t, "H,\(t),\(s.beatsPerMinute),,,,,,,,,,"))
         }
+
+        for s in locationSamples {
+            let t = s.timestamp.timeIntervalSince1970
+            rows.append((
+                t,
+                "G,\(t),,\(s.latitude),\(s.longitude),\(s.altitude),"
+                    + "\(s.horizontalAccuracy),\(s.verticalAccuracy),"
+                    + "\(s.speed),\(s.course),,,"
+            ))
+        }
+
+        for s in accelerometerSamples {
+            let t = s.timestamp.timeIntervalSince1970
+            rows.append((t, "A,\(t),,,,,,,,\(s.x),\(s.y),\(s.z)"))
+        }
+
+        rows.sort { $0.timestamp < $1.timestamp }
+
+        for row in rows {
+            csv += row.line + "\n"
+        }
+
         return Data(csv.utf8)
     }
 

@@ -18,7 +18,7 @@ struct ExportView: View {
     var body: some View {
         VStack(spacing: 12) {
             if let session = workoutManager.currentSession {
-                Text("\(session.sampleCount) samples")
+                Text("\(session.totalSampleCount) samples")
                 Text(session.startDate, style: .date)
                     .font(.caption)
 

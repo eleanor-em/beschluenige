@@ -40,7 +40,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
         let metadata: [String: Any] = [
             "fileName": fileName,
-            "sampleCount": recordingSession.sampleCount,
+            "sampleCount": recordingSession.totalSampleCount,
             "startDate": recordingSession.startDate.timeIntervalSince1970,
         ]
 

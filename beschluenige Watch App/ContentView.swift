@@ -1,7 +1,11 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var workoutManager = WorkoutManager(provider: MockHeartRateProvider())
+    @State private var workoutManager = WorkoutManager(
+        provider: MockHeartRateProvider(),
+        locationProvider: MockLocationProvider(),
+        motionProvider: MockMotionProvider()
+    )
     @State private var showExport = false
 
     var body: some View {

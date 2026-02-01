@@ -7,6 +7,7 @@
 	<key>WKBackgroundModes</key>
 	<array>
 		<string>workout-processing</string>
+		<string>location-updates</string>
 	</array>
 </dict>
 </plist>

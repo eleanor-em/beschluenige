@@ -30,9 +30,15 @@ struct RecordingView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("\(workoutManager.currentSession?.sampleCount ?? 0) samples")
+                Text("\(workoutManager.currentSession?.sampleCount ?? 0) HR / \(workoutManager.locationSampleCount) GPS / \(workoutManager.accelerometerSampleCount) accel")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+
+                if workoutManager.usingSimulatedData {
+                    Label("Simulated data", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                }
 
                 Button {
                     workoutManager.stopRecording()

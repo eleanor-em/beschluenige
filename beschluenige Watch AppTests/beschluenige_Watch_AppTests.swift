@@ -13,13 +13,31 @@ struct RecordingSessionTests {
         #expect(session.sampleCount == 2)
     }
 
+    @Test func totalSampleCount() {
+        var session = RecordingSession(startDate: Date())
+        #expect(session.totalSampleCount == 0)
+
+        session.samples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
+        session.locationSamples.append(LocationSample(
+            timestamp: Date(), latitude: 43.0, longitude: -79.0,
+            altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+            speed: 3.0, course: 90.0
+        ))
+        session.accelerometerSamples.append(AccelerometerSample(
+            timestamp: Date(), x: 0.1, y: -0.2, z: 0.98
+        ))
+        #expect(session.totalSampleCount == 3)
+    }
+
     @Test func csvHeader() {
         let session = RecordingSession(startDate: Date())
         let csv = String(data: session.csvData(), encoding: .utf8)!
-        #expect(csv == "timestamp,bpm\n")
+        let lines = csv.split(separator: "\n")
+        #expect(lines.count == 1)
+        #expect(lines[0] == "type,timestamp,bpm,lat,lon,alt,h_acc,v_acc,speed,course,ax,ay,az")
     }
 
-    @Test func csvContainsSamples() {
+    @Test func csvContainsHeartRateSamples() {
         let t1 = Date(timeIntervalSince1970: 1000)
         let t2 = Date(timeIntervalSince1970: 1005)
 
@@ -33,9 +51,72 @@ struct RecordingSessionTests {
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 3)
-        #expect(lines[0] == "timestamp,bpm")
-        #expect(lines[1] == "1000.0,72.0")
-        #expect(lines[2] == "1005.0,148.0")
+        #expect(lines[1] == "H,1000.0,72.0,,,,,,,,,,")
+        #expect(lines[2] == "H,1005.0,148.0,,,,,,,,,,")
+    }
+
+    @Test func csvContainsLocationSamples() {
+        let t = Date(timeIntervalSince1970: 2000)
+
+        var session = RecordingSession(startDate: t)
+        session.locationSamples = [
+            LocationSample(
+                timestamp: t, latitude: 43.65, longitude: -79.38,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 3.5, course: 180.0
+            ),
+        ]
+
+        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let lines = csv.split(separator: "\n")
+
+        #expect(lines.count == 2)
+        #expect(lines[1] == "G,2000.0,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,,,")
+    }
+
+    @Test func csvContainsAccelerometerSamples() {
+        let t = Date(timeIntervalSince1970: 3000)
+
+        var session = RecordingSession(startDate: t)
+        session.accelerometerSamples = [
+            AccelerometerSample(timestamp: t, x: 0.01, y: -0.02, z: 0.98),
+        ]
+
+        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let lines = csv.split(separator: "\n")
+
+        #expect(lines.count == 2)
+        #expect(lines[1] == "A,3000.0,,,,,,,,0.01,-0.02,0.98")
+    }
+
+    @Test func csvSortsByTimestamp() {
+        let t1 = Date(timeIntervalSince1970: 1000)
+        let t2 = Date(timeIntervalSince1970: 1001)
+        let t3 = Date(timeIntervalSince1970: 1002)
+
+        var session = RecordingSession(startDate: t1)
+        // Add in non-chronological order across types
+        session.accelerometerSamples = [
+            AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
+        ]
+        session.samples = [
+            HeartRateSample(timestamp: t1, beatsPerMinute: 100),
+        ]
+        session.locationSamples = [
+            LocationSample(
+                timestamp: t2, latitude: 43.0, longitude: -79.0,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 2.0, course: 90.0
+            ),
+        ]
+
+        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let lines = csv.split(separator: "\n")
+
+        #expect(lines.count == 4)
+        #expect(lines[1].hasPrefix("H,1000.0"))
+        #expect(lines[2].hasPrefix("G,1001.0"))
+        #expect(lines[3].hasPrefix("A,1002.0"))
     }
 
     @Test func csvTimestampPrecision() {
@@ -49,7 +130,7 @@ struct RecordingSessionTests {
         let lines = csv.split(separator: "\n")
         let fields = lines[1].split(separator: ",")
 
-        let timestamp = Double(fields[0])!
+        let timestamp = Double(fields[1])!
         #expect(abs(timestamp - 1706812345.678) < 0.001)
     }
 
@@ -74,7 +155,13 @@ struct WorkoutManagerTests {
 
     @Test func startRecordingCreatesSession() async throws {
         let mock = MockHeartRateProvider()
-        let manager = WorkoutManager(provider: mock)
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
 
         try await manager.startRecording()
 
@@ -85,7 +172,13 @@ struct WorkoutManagerTests {
 
     @Test func stopRecordingSetsEndDate() async throws {
         let mock = MockHeartRateProvider()
-        let manager = WorkoutManager(provider: mock)
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
 
         try await manager.startRecording()
         manager.stopRecording()
@@ -96,7 +189,13 @@ struct WorkoutManagerTests {
 
     @Test func samplesFlowThroughProvider() async throws {
         let mock = MockHeartRateProvider()
-        let manager = WorkoutManager(provider: mock)
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
 
         try await manager.startRecording()
 
@@ -114,9 +213,64 @@ struct WorkoutManagerTests {
         #expect(manager.lastSampleDate == t.addingTimeInterval(1))
     }
 
+    @Test func locationSamplesFlowThroughProvider() async throws {
+        let mock = MockHeartRateProvider()
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
+
+        try await manager.startRecording()
+
+        mockLocation.sendSamples([
+            LocationSample(
+                timestamp: Date(), latitude: 43.65, longitude: -79.38,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 3.0, course: 90.0
+            ),
+        ])
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.currentSession?.locationSamples.count == 1)
+        #expect(manager.locationSampleCount == 1)
+    }
+
+    @Test func accelerometerSamplesFlowThroughProvider() async throws {
+        let mock = MockHeartRateProvider()
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
+
+        try await manager.startRecording()
+
+        mockMotion.sendSamples([
+            AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
+            AccelerometerSample(timestamp: Date(), x: 0.2, y: -0.1, z: 0.97),
+        ])
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.currentSession?.accelerometerSamples.count == 2)
+        #expect(manager.accelerometerSampleCount == 2)
+    }
+
     @Test func stopClearsSampleDelivery() async throws {
         let mock = MockHeartRateProvider()
-        let manager = WorkoutManager(provider: mock)
+        let mockLocation = MockLocationProvider()
+        let mockMotion = MockMotionProvider()
+        let manager = WorkoutManager(
+            provider: mock,
+            locationProvider: mockLocation,
+            motionProvider: mockMotion
+        )
 
         try await manager.startRecording()
         manager.stopRecording()
