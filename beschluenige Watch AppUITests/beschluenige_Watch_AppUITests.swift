@@ -1,39 +1,70 @@
-//
-//  beschluenige_Watch_AppUITests.swift
-//  beschluenige Watch AppUITests
-//
-//  Created by Eleanor McMurtry on 01.02.2026.
-//
-
 import XCTest
 
 final class beschluenige_Watch_AppUITests: XCTestCase {
 
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testStartButtonExists() throws {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testStartButtonBeginsRecording() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        app.buttons["Start"].tap()
+
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["BPM"].exists)
+    }
+
+    @MainActor
+    func testStopButtonReturnsToStart() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+
+        app.buttons["Stop"].tap()
+        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testExportButtonAppearsAfterRecording() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+
+        app.buttons["Stop"].tap()
+        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testWaitingTextShownDuringRecording() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        app.buttons["Start"].tap()
+
+        // Before any HR samples arrive, should show "waiting..." or a sample count
+        XCTAssertTrue(
+            app.staticTexts["waiting..."].waitForExistence(timeout: 5)
+            || app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'samples'")).firstMatch.waitForExistence(timeout: 5)
+        )
     }
 
     @MainActor
     func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }

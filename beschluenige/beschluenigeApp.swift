@@ -1,14 +1,11 @@
-//
-//  beschluenigeApp.swift
-//  beschluenige
-//
-//  Created by Eleanor McMurtry on 01.02.2026.
-//
-
 import SwiftUI
 
 @main
 struct beschluenigeApp: App {
+    init() {
+        WatchConnectivityManager.shared.activate()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

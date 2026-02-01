@@ -1,21 +1,23 @@
-//
-//  ContentView.swift
-//  beschluenige Watch App
-//
-//  Created by Eleanor McMurtry on 01.02.2026.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @State private var workoutManager = WorkoutManager(provider: MockHeartRateProvider())
+    @State private var showExport = false
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        NavigationStack {
+            if workoutManager.isRecording {
+                RecordingView(workoutManager: workoutManager)
+            } else {
+                StartView(workoutManager: workoutManager, showExport: $showExport)
+            }
         }
-        .padding()
+        .sheet(isPresented: $showExport) {
+            ExportView(workoutManager: workoutManager)
+        }
+        .task {
+            try? await workoutManager.requestAuthorization()
+        }
     }
 }
 
