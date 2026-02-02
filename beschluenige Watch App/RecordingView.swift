@@ -30,7 +30,11 @@ struct RecordingView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Text("\(workoutManager.currentSession?.sampleCount ?? 0) HR / \(workoutManager.locationSampleCount) GPS / \(workoutManager.accelerometerSampleCount) accel")
+                Text(
+                    "\(workoutManager.currentSession?.sampleCount ?? 0) HR"
+                    + " / \(workoutManager.locationSampleCount) GPS"
+                    + " / \(workoutManager.accelerometerSampleCount) accel"
+                )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 

@@ -1,0 +1,5 @@
+identifier_name:
+  min_length: 1
+
+trailing_comma:
+  mandatory_comma: true

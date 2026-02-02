@@ -21,9 +21,9 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         session.activate()
     }
 
-    func sendSession(_ recordingSession: RecordingSession) -> Bool {
-        guard session.activationState == .activated else { return false }
-
+    func prepareFileForTransfer(
+        _ recordingSession: RecordingSession
+    ) throws -> (URL, [String: Any]) {
         let csvData = recordingSession.csvData()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
@@ -31,12 +31,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(fileName)
-        do {
-            try csvData.write(to: tempURL)
-        } catch {
-            logger.error("Failed to write temp CSV: \(error.localizedDescription)")
-            return false
-        }
+        try csvData.write(to: tempURL)
 
         let metadata: [String: Any] = [
             "fileName": fileName,
@@ -44,8 +39,20 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
             "startDate": recordingSession.startDate.timeIntervalSince1970,
         ]
 
-        session.transferFile(tempURL, metadata: metadata)
-        return true
+        return (tempURL, metadata)
+    }
+
+    func sendSession(_ recordingSession: RecordingSession) -> Bool {
+        guard session.activationState == .activated else { return false }
+
+        do {
+            let (tempURL, metadata) = try prepareFileForTransfer(recordingSession)
+            session.transferFile(tempURL, metadata: metadata)
+            return true
+        } catch {
+            logger.error("Failed to write temp CSV: \(error.localizedDescription)")
+            return false
+        }
     }
 }
 

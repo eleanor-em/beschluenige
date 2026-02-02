@@ -28,9 +28,36 @@ Note: the Series 10 simulator is not available. Use Ultra 3 or Series 11.
 
 The watch app reads heart rate from HealthKit to detect shift boundaries (on-ice vs bench) and uses Core Location/Core Motion to estimate skating speed during active shifts.
 
+## Lint
+
+SwiftLint is configured via `.swiftlint.yml`. Run from the project root:
+
+```
+swiftlint
+```
+
+Key rules: short variable names are allowed (`min_length: 1`), trailing commas are mandatory in multi-line collections.
+
+## Test coverage
+
+Add `-enableCodeCoverage YES` and `-resultBundlePath` to the test command:
+
+```
+xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath ./TestResults.xcresult
+```
+
+View the per-file coverage report:
+
+```
+xcrun xccov view --report TestResults.xcresult
+```
+
+Delete `TestResults.xcresult` before re-running, since `-resultBundlePath` fails if the bundle already exists.
+
 ## Code style
 
 - Use ASCII only in comments and log messages (no Unicode arrows, em dashes, etc.)
+- Use trailing commas in multi-line collection literals
 
 ## Sensor data collection
 

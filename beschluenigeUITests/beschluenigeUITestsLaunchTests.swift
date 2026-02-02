@@ -7,13 +7,14 @@
 
 import XCTest
 
-final class beschluenigeUITestsLaunchTests: XCTestCase {
+final class BeschluenigeUITestsLaunchTests: XCTestCase {
 
-    override class var runsForEachTargetApplicationUIConfiguration: Bool {
+    override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
 
     override func setUpWithError() throws {
+        try super.setUpWithError()
         continueAfterFailure = false
     }
 

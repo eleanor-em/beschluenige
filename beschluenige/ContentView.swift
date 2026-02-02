@@ -1,11 +1,40 @@
+import HealthKit
 import SwiftUI
+import os
 
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
+    @State private var healthAuthDenied = false
+
+    private let logger = Logger(
+        subsystem: "net.lnor.beschluenige",
+        category: "ContentView"
+    )
 
     var body: some View {
         NavigationStack {
             List {
+                if healthAuthDenied {
+                    Section {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("HealthKit Access Required", systemImage: "heart.circle.fill")
+                                .font(.headline)
+                                .foregroundStyle(.red)
+                            Text(
+                                "beschluenige needs permission to read heart rate and write"
+                                + " workouts. Open Settings > Privacy & Security > Health >"
+                                + " beschluenige and enable all permissions."
+                            )
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            if let url = URL(string: "x-apple-health://") {
+                                Link("Open Health App", destination: url)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
                 if connectivityManager.receivedFiles.isEmpty {
                     ContentUnavailableView(
                         "No Recordings",
@@ -32,6 +61,34 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("beschluenige")
+        }
+        .task {
+            await requestHealthKitAuthorization()
+        }
+    }
+
+    private func requestHealthKitAuthorization() async {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            logger.warning("HealthKit not available on this device")
+            return
+        }
+
+        let store = HKHealthStore()
+        let heartRateType = HKQuantityType(.heartRate)
+        let workoutType = HKObjectType.workoutType()
+
+        do {
+            logger.info("Requesting HealthKit authorization")
+            try await store.requestAuthorization(
+                toShare: [workoutType],
+                read: [heartRateType]
+            )
+            let wkStatus = store.authorizationStatus(for: workoutType)
+            logger.info("HealthKit workout authorization status: \(wkStatus.rawValue)")
+            healthAuthDenied = wkStatus != .sharingAuthorized
+        } catch {
+            logger.error("HealthKit authorization error: \(error.localizedDescription)")
+            healthAuthDenied = true
         }
     }
 }

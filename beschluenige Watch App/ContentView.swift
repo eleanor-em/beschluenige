@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 struct ContentView: View {
     @State private var workoutManager = WorkoutManager(
@@ -7,6 +8,11 @@ struct ContentView: View {
         motionProvider: MockMotionProvider()
     )
     @State private var showExport = false
+
+    private let logger = Logger(
+        subsystem: "net.lnor.beschluenige.watchkitapp",
+        category: "ContentView"
+    )
 
     var body: some View {
         NavigationStack {
@@ -20,7 +26,11 @@ struct ContentView: View {
             ExportView(workoutManager: workoutManager)
         }
         .task {
-            try? await workoutManager.requestAuthorization()
+            do {
+                try await workoutManager.requestAuthorization()
+            } catch {
+                logger.error("Authorization failed: \(error.localizedDescription)")
+            }
         }
     }
 }

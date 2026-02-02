@@ -7,13 +7,14 @@
 
 import XCTest
 
-final class beschluenige_Watch_AppUITestsLaunchTests: XCTestCase {
+final class BeschluenigeWatchAppUITestsLaunchTests: XCTestCase {
 
-    override class var runsForEachTargetApplicationUIConfiguration: Bool {
+    override static var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }
 
     override func setUpWithError() throws {
+        try super.setUpWithError()
         continueAfterFailure = false
     }
 

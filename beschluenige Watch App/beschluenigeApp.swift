@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct beschluenige_Watch_AppApp: App {
+struct BeschluenigeWatchApp: App {
     init() {
         PhoneConnectivityManager.shared.activate()
     }

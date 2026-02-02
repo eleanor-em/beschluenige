@@ -51,7 +51,13 @@ extension WatchConnectivityManager: WCSessionDelegate {
     }
 
     nonisolated func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        let metadata = file.metadata
+        processReceivedFile(fileURL: file.fileURL, metadata: file.metadata)
+    }
+
+    nonisolated func processReceivedFile(
+        fileURL: URL,
+        metadata: [String: Any]?
+    ) {
         let fileName = metadata?["fileName"] as? String ?? "unknown.csv"
         let sampleCount = metadata?["sampleCount"] as? Int ?? 0
         let startInterval = metadata?["startDate"] as? TimeInterval ?? 0
@@ -66,7 +72,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
             if FileManager.default.fileExists(atPath: destinationURL.path) {
                 try FileManager.default.removeItem(at: destinationURL)
             }
-            try FileManager.default.moveItem(at: file.fileURL, to: destinationURL)
+            try FileManager.default.moveItem(at: fileURL, to: destinationURL)
 
             let receivedFile = ReceivedFile(
                 fileName: fileName,

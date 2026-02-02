@@ -11,10 +11,6 @@ struct ExportView: View {
         category: "Export"
     )
 
-    enum TransferState {
-        case idle, sending, sent, savedLocally(URL), failed(String)
-    }
-
     var body: some View {
         VStack(spacing: 12) {
             if let session = workoutManager.currentSession {
@@ -53,19 +49,11 @@ struct ExportView: View {
 
     private func sendToPhone(session: RecordingSession) {
         transferState = .sending
-        let success = PhoneConnectivityManager.shared.sendSession(session)
-        if success {
-            transferState = .sent
-        } else {
-            logger.warning("WatchConnectivity transfer failed, saving locally")
-            do {
-                let url = try session.saveLocally()
-                logger.info("CSV saved to \(url.path)")
-                transferState = .savedLocally(url)
-            } catch {
-                logger.error("Local save also failed: \(error.localizedDescription)")
-                transferState = .failed(error.localizedDescription)
-            }
+        transferState = ExportAction().execute(session: session)
+        if case .savedLocally(let url) = transferState {
+            logger.info("CSV saved to \(url.path)")
+        } else if case .failed(let message) = transferState {
+            logger.error("Export failed: \(message)")
         }
     }
 }

@@ -2,7 +2,8 @@ import Foundation
 import os
 
 final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
-    private let realProvider = HealthKitHeartRateProvider()
+    private let realProvider: any HeartRateProvider
+    private let timeoutInterval: TimeInterval
     private var sampleHandler: (@Sendable ([HeartRateSample]) -> Void)?
     private var fallbackTimer: Timer?
     private var timeoutTimer: Timer?
@@ -12,6 +13,14 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "MockHR"
     )
+
+    init(
+        realProvider: any HeartRateProvider = HealthKitHeartRateProvider(),
+        timeoutInterval: TimeInterval = 10
+    ) {
+        self.realProvider = realProvider
+        self.timeoutInterval = timeoutInterval
+    }
 
     func requestAuthorization() async throws {
         try await realProvider.requestAuthorization()
@@ -27,7 +36,7 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
             handler(samples)
         }
 
-        let timer = Timer(timeInterval: 10, repeats: false) { [weak self] _ in
+        let timer = Timer(timeInterval: timeoutInterval, repeats: false) { [weak self] _ in
             self?.startFallback()
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -62,7 +71,7 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
         RunLoop.main.add(timer, forMode: .common)
         fallbackTimer = timer
     }
-    
+
     func sendSamples(_ samples: [HeartRateSample]) {
         sampleHandler?(samples)
     }
