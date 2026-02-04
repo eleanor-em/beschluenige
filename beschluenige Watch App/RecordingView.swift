@@ -38,12 +38,6 @@ struct RecordingView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
-                if workoutManager.usingSimulatedData {
-                    Label("Simulated data", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.yellow)
-                }
-
                 Button {
                     workoutManager.stopRecording()
                 } label: {

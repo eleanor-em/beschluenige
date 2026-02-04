@@ -9,7 +9,6 @@ final class WorkoutManager {
     var currentSession: RecordingSession?
     var locationSampleCount: Int = 0
     var accelerometerSampleCount: Int = 0
-    var usingSimulatedData = false
 
     private let provider: any HeartRateProvider
     private let locationProvider: any LocationProvider
@@ -40,13 +39,10 @@ final class WorkoutManager {
         lastSampleDate = nil
         locationSampleCount = 0
         accelerometerSampleCount = 0
-        usingSimulatedData = false
-
-        configureFallbackCallbacks()
 
         try await provider.startMonitoring { [weak self] samples in
             Task { @MainActor [weak self] in
-                self?.processSamples(samples)
+                self?.processHeartRateSamples(samples)
             }
         }
 
@@ -73,25 +69,14 @@ final class WorkoutManager {
         isRecording = false
     }
 
-    private func configureFallbackCallbacks() {
-        let markSimulated: @Sendable () -> Void = { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.usingSimulatedData = true
-            }
+    private func processHeartRateSamples(_ samples: [HeartRateSample]) {
+        guard isRecording else {
+            logger.error("processSamples(): not currently recording")
+            return
         }
-        if let mock = provider as? MockHeartRateProvider {
-            mock.onFallbackActivated = markSimulated
-        }
-        if let mock = locationProvider as? MockLocationProvider {
-            mock.onFallbackActivated = markSimulated
-        }
-        if let mock = motionProvider as? MockMotionProvider {
-            mock.onFallbackActivated = markSimulated
-        }
-    }
-
-    private func processSamples(_ samples: [HeartRateSample]) {
-        currentSession?.samples.append(contentsOf: samples)
+        // isRecording implies currentSession != nil.
+        assert(currentSession != nil)
+        currentSession!.heartRateSamples.append(contentsOf: samples)
         if let last = samples.last {
             currentHeartRate = last.beatsPerMinute
             lastSampleDate = last.timestamp
@@ -99,12 +84,24 @@ final class WorkoutManager {
     }
 
     private func processLocationSamples(_ samples: [LocationSample]) {
-        currentSession?.locationSamples.append(contentsOf: samples)
-        locationSampleCount = currentSession?.locationSamples.count ?? 0
+        guard isRecording else {
+            logger.error("processLocationSamples(): not currently recording")
+            return
+        }
+        // isRecording implies currentSession != nil.
+        assert(currentSession != nil)
+        currentSession!.locationSamples.append(contentsOf: samples)
+        locationSampleCount = currentSession!.locationSamples.count
     }
 
     private func processAccelerometerSamples(_ samples: [AccelerometerSample]) {
-        currentSession?.accelerometerSamples.append(contentsOf: samples)
-        accelerometerSampleCount = currentSession?.accelerometerSamples.count ?? 0
+        guard isRecording else {
+            logger.error("processAccelerometerSamples(): not currently recording")
+            return
+        }
+        // isRecording implies currentSession != nil.
+        assert(currentSession != nil)
+        currentSession!.accelerometerSamples.append(contentsOf: samples)
+        accelerometerSampleCount = currentSession!.accelerometerSamples.count
     }
 }

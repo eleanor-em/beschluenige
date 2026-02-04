@@ -3,9 +3,9 @@ import os
 
 struct ContentView: View {
     @State private var workoutManager = WorkoutManager(
-        provider: MockHeartRateProvider(),
-        locationProvider: MockLocationProvider(),
-        motionProvider: MockMotionProvider()
+        provider: HealthKitHeartRateProvider(),
+        locationProvider: CoreLocationProvider(),
+        motionProvider: CoreMotionProvider()
     )
     @State private var showExport = false
 

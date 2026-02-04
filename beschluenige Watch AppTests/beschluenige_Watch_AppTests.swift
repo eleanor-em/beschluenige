@@ -8,8 +8,8 @@ struct RecordingSessionTests {
         var session = RecordingSession(startDate: Date())
         #expect(session.sampleCount == 0)
 
-        session.samples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
-        session.samples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 130))
+        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
+        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 130))
         #expect(session.sampleCount == 2)
     }
 
@@ -17,7 +17,7 @@ struct RecordingSessionTests {
         var session = RecordingSession(startDate: Date())
         #expect(session.totalSampleCount == 0)
 
-        session.samples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
+        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
         session.locationSamples.append(LocationSample(
             timestamp: Date(), latitude: 43.0, longitude: -79.0,
             altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
@@ -42,7 +42,7 @@ struct RecordingSessionTests {
         let t2 = Date(timeIntervalSince1970: 1005)
 
         var session = RecordingSession(startDate: t1)
-        session.samples = [
+        session.heartRateSamples = [
             HeartRateSample(timestamp: t1, beatsPerMinute: 72),
             HeartRateSample(timestamp: t2, beatsPerMinute: 148),
         ]
@@ -99,7 +99,7 @@ struct RecordingSessionTests {
         session.accelerometerSamples = [
             AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
         ]
-        session.samples = [
+        session.heartRateSamples = [
             HeartRateSample(timestamp: t1, beatsPerMinute: 100),
         ]
         session.locationSamples = [
@@ -122,7 +122,7 @@ struct RecordingSessionTests {
     @Test func csvTimestampPrecision() {
         let t = Date(timeIntervalSince1970: 1706812345.678)
         var session = RecordingSession(startDate: t)
-        session.samples = [
+        session.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 90),
         ]
 
@@ -152,7 +152,7 @@ struct RecordingSessionTests {
     @Test func saveLocallyWritesCsvFile() throws {
         let t = Date(timeIntervalSince1970: 1706812345.678)
         var session = RecordingSession(startDate: t)
-        session.samples = [
+        session.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 100),
         ]
 
@@ -174,17 +174,10 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
@@ -198,17 +191,10 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
@@ -222,23 +208,16 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
 
         let t = Date()
-        mock.sendSamples([
+        stub.sendSamples([
             HeartRateSample(timestamp: t, beatsPerMinute: 120),
             HeartRateSample(timestamp: t.addingTimeInterval(1), beatsPerMinute: 130),
         ])
@@ -255,23 +234,15 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
-        let mockLocation = MockLocationProvider(
-            realProviderFactory: { stubLocation },
-            timeoutInterval: 60
-        )
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: mockLocation,
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
 
-        mockLocation.sendSamples([
+        stubLocation.sendSamples([
             LocationSample(
                 timestamp: Date(), latitude: 43.65, longitude: -79.38,
                 altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
@@ -289,23 +260,15 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
-        let mockMotion = MockMotionProvider(
-            realProviderFactory: { stubMotion },
-            timeoutInterval: 60
-        )
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: mockMotion
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
 
-        mockMotion.sendSamples([
+        stubMotion.sendSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
             AccelerometerSample(timestamp: Date(), x: 0.2, y: -0.1, z: 0.97),
         ])
@@ -316,50 +279,18 @@ struct WorkoutManagerTests {
         #expect(manager.accelerometerSampleCount == 2)
     }
 
-    @Test func fallbackCallbackSetsSimulatedFlag() async throws {
-        let stub = StubHeartRateProvider()
-        let stubLocation = StubLocationProvider()
-        let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
-        let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
-        )
-
-        try await manager.startRecording()
-
-        mock.onFallbackActivated?()
-        try await Task.sleep(for: .milliseconds(50))
-
-        #expect(manager.usingSimulatedData)
-    }
-
     @Test func emptySampleArrayDoesNotUpdateHeartRate() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
-        mock.sendSamples([])
+        stub.sendSamples([])
         try await Task.sleep(for: .milliseconds(50))
 
         #expect(manager.currentHeartRate == 0)
@@ -370,29 +301,76 @@ struct WorkoutManagerTests {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
-        let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
         let manager = WorkoutManager(
-            provider: mock,
-            locationProvider: MockLocationProvider(
-                realProviderFactory: { stubLocation },
-                timeoutInterval: 60
-            ),
-            motionProvider: MockMotionProvider(
-                realProviderFactory: { stubMotion },
-                timeoutInterval: 60
-            )
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
         )
 
         try await manager.startRecording()
-        manager.stopRecording()
 
-        mock.sendSamples([
+        // Send samples while recording -- queues a MainActor Task but
+        // it cannot run until we yield.
+        stub.sendSamples([
             HeartRateSample(timestamp: Date(), beatsPerMinute: 99),
         ])
 
+        // Stop before the queued Task executes.
+        manager.stopRecording()
+
+        // Yield so the queued Task runs and hits the guard.
         try await Task.sleep(for: .milliseconds(50))
 
-        // Samples after stop should not be delivered
         #expect(manager.currentSession?.sampleCount == 0)
+    }
+
+    @Test func stopClearsLocationSampleDelivery() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+
+        try await manager.startRecording()
+
+        stubLocation.sendSamples([
+            LocationSample(
+                timestamp: Date(), latitude: 43.65, longitude: -79.38,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 3.0, course: 90.0
+            ),
+        ])
+
+        manager.stopRecording()
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.locationSampleCount == 0)
+    }
+
+    @Test func stopClearsAccelerometerSampleDelivery() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+
+        try await manager.startRecording()
+
+        stubMotion.sendSamples([
+            AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
+        ])
+
+        manager.stopRecording()
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.accelerometerSampleCount == 0)
     }
 }

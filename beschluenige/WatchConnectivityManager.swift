@@ -14,12 +14,24 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         category: "Connectivity"
     )
 
-    struct ReceivedFile: Identifiable, Sendable {
-        let id = UUID()
+    struct ReceivedFile: Identifiable, Codable, Sendable {
+        let id: UUID
         let fileName: String
-        let fileURL: URL
         let sampleCount: Int
         let startDate: Date
+
+        var fileURL: URL {
+            FileManager.default.urls(
+                for: .documentDirectory, in: .userDomainMask
+            ).first!.appendingPathComponent(fileName)
+        }
+
+        init(fileName: String, sampleCount: Int, startDate: Date) {
+            self.id = UUID()
+            self.fileName = fileName
+            self.sampleCount = sampleCount
+            self.startDate = startDate
+        }
     }
 
     private override init() {
@@ -30,6 +42,42 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         guard WCSession.isSupported() else { return }
         session.delegate = self
         session.activate()
+        loadReceivedFiles()
+    }
+
+    func deleteFile(_ file: ReceivedFile) {
+        try? FileManager.default.removeItem(at: file.fileURL)
+        receivedFiles.removeAll { $0.id == file.id }
+        saveReceivedFiles()
+    }
+
+    private func persistedFilesURL() -> URL {
+        FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!.appendingPathComponent("received_files.json")
+    }
+
+    private func saveReceivedFiles() {
+        do {
+            let data = try JSONEncoder().encode(receivedFiles)
+            try data.write(to: persistedFilesURL(), options: .atomic)
+        } catch {
+            logger.error("Failed to persist received files list: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadReceivedFiles() {
+        let url = persistedFilesURL()
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+        do {
+            let data = try Data(contentsOf: url)
+            let files = try JSONDecoder().decode([ReceivedFile].self, from: data)
+            receivedFiles = files.filter {
+                FileManager.default.fileExists(atPath: $0.fileURL.path)
+            }
+        } catch {
+            logger.error("Failed to load received files list: \(error.localizedDescription)")
+        }
     }
 }
 
@@ -76,13 +124,13 @@ extension WatchConnectivityManager: WCSessionDelegate {
 
             let receivedFile = ReceivedFile(
                 fileName: fileName,
-                fileURL: destinationURL,
                 sampleCount: sampleCount,
                 startDate: Date(timeIntervalSince1970: startInterval)
             )
 
             Task { @MainActor in
                 self.receivedFiles.append(receivedFile)
+                self.saveReceivedFiles()
             }
         } catch {
             logger.error("Failed to save received file: \(error.localizedDescription)")

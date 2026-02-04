@@ -3,13 +3,13 @@ import Foundation
 struct RecordingSession: Sendable {
     let startDate: Date
     var endDate: Date?
-    var samples: [HeartRateSample] = []
+    var heartRateSamples: [HeartRateSample] = []
     var locationSamples: [LocationSample] = []
     var accelerometerSamples: [AccelerometerSample] = []
 
-    var sampleCount: Int { samples.count }
+    var sampleCount: Int { heartRateSamples.count }
     var totalSampleCount: Int {
-        samples.count + locationSamples.count + accelerometerSamples.count
+        heartRateSamples.count + locationSamples.count + accelerometerSamples.count
     }
 
     func csvData() -> Data {
@@ -18,7 +18,7 @@ struct RecordingSession: Sendable {
         // Build (type, timestamp, row-string) tuples for sorting
         var rows: [(timestamp: Double, line: String)] = []
 
-        for s in samples {
+        for s in heartRateSamples {
             let t = s.timestamp.timeIntervalSince1970
             rows.append((t, "H,\(t),\(s.beatsPerMinute),,,,,,,,,,"))
         }

@@ -15,7 +15,7 @@ struct PhoneConnectivityManagerTests {
     @Test func prepareFileForTransferWritesCsv() throws {
         let t = Date(timeIntervalSince1970: 1706812345)
         var session = RecordingSession(startDate: t)
-        session.samples = [
+        session.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 100),
         ]
 

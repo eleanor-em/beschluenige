@@ -61,7 +61,7 @@ Delete `TestResults.xcresult` before re-running, since `-resultBundlePath` fails
 
 ## Sensor data collection
 
-All sensor data follows the same provider pattern: a protocol with `startMonitoring(handler:)` and `stopMonitoring()`, a real implementation, and a mock wrapper that falls back to simulated data after 10 seconds on the simulator.
+All sensor data follows the same provider pattern: a protocol with `startMonitoring(handler:)` and `stopMonitoring()`, and a real implementation. Mock wrappers (test-only) fall back to simulated data after 10 seconds when the real provider delivers no samples.
 
 ### Heart rate
 
@@ -70,8 +70,8 @@ Collected using `HKWorkoutSession` + `HKAnchoredObjectQuery`. The workout sessio
 Key files:
 - `HeartRateProvider.swift` -- protocol
 - `HealthKitHeartRateProvider.swift` -- real HealthKit implementation
-- `MockHeartRateProvider.swift` -- simulator fallback wrapper
 - `HeartRateSample.swift` -- struct: timestamp + BPM
+- `beschluenige Watch AppTests/Mocks/MockHeartRateProvider.swift` -- test-only fallback wrapper
 
 ### GPS location
 
@@ -80,8 +80,8 @@ Collected using `CLLocationManager` with `desiredAccuracy = kCLLocationAccuracyB
 Key files:
 - `LocationProvider.swift` -- protocol
 - `CoreLocationProvider.swift` -- real Core Location implementation
-- `MockLocationProvider.swift` -- simulator fallback wrapper
 - `LocationSample.swift` -- struct: timestamp, lat, lon, altitude, accuracies, speed, course
+- `beschluenige Watch AppTests/Mocks/MockLocationProvider.swift` -- test-only fallback wrapper
 
 ### Accelerometer
 
@@ -90,8 +90,8 @@ Collected using `CMMotionManager` at 100 Hz (`accelerometerUpdateInterval = 0.01
 Key files:
 - `MotionProvider.swift` -- protocol
 - `CoreMotionProvider.swift` -- real Core Motion implementation
-- `MockMotionProvider.swift` -- simulator fallback wrapper
 - `AccelerometerSample.swift` -- struct: timestamp, x, y, z
+- `beschluenige Watch AppTests/Mocks/MockMotionProvider.swift` -- test-only fallback wrapper
 
 ### Orchestration
 

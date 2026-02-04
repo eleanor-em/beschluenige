@@ -91,12 +91,7 @@ struct HealthKitHeartRateProviderTests {
             healthStore: store,
             configuration: config
         )
-        guard let builder = session.associatedWorkoutBuilder()
-            as? HKLiveWorkoutBuilder else {
-            Issue.record("Expected HKLiveWorkoutBuilder")
-            return
-        }
-
+        let builder = session.associatedWorkoutBuilder()
         provider.workoutBuilderDidCollectEvent(builder)
         provider.workoutBuilder(
             builder,

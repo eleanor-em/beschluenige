@@ -5,6 +5,7 @@ import os
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
     @State private var healthAuthDenied = false
+    @State private var fileToDelete: WatchConnectivityManager.ReceivedFile?
 
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige",
@@ -56,11 +57,50 @@ struct ContentView: View {
                         }
                         .contextMenu {
                             ShareLink(item: file.fileURL)
+                            Button(role: .destructive) {
+                                fileToDelete = file
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .listRowBackground(
+                            fileToDelete?.id == file.id
+                                ? Color.red.opacity(0.2)
+                                : nil
+                        )
+                        .swipeActions(edge: .trailing) {
+                            Button {
+                                fileToDelete = file
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .tint(.red)
                         }
                     }
                 }
             }
             .navigationTitle("beschluenige")
+            .alert(
+                "Delete Recording",
+                isPresented: Binding(
+                    get: { fileToDelete != nil },
+                    set: { if !$0 { fileToDelete = nil } }
+                )
+            ) {
+                Button("Delete", role: .destructive) {
+                    if let file = fileToDelete {
+                        connectivityManager.deleteFile(file)
+                        fileToDelete = nil
+                    }
+                }
+                Button("Cancel", role: .cancel) {
+                    fileToDelete = nil
+                }
+            } message: {
+                if let file = fileToDelete {
+                    Text("Are you sure you want to delete \"\(file.fileName)\"? This cannot be undone.")
+                }
+            }
         }
         .task {
             await requestHealthKitAuthorization()
