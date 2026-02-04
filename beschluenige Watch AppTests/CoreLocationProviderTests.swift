@@ -175,4 +175,38 @@ struct CoreLocationProviderTests {
         // Call again to exercise the early return
         try await provider.requestAuthorization()
     }
+
+    @Test func requestAuthorizationContinuationPath() async throws {
+        let provider = CoreLocationProvider()
+        // Wait for initial locationManagerDidChangeAuthorization callback to drain
+        try await Task.sleep(for: .milliseconds(200))
+
+        let task = Task<Void, Error> {
+            try await provider.requestAuthorization(currentStatus: .notDetermined)
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        provider.handleAuthorizationChange(.authorizedWhenInUse)
+
+        try await task.value
+    }
+
+    @Test func handleAuthorizationChangeUnknownStatusResumes() async throws {
+        let provider = CoreLocationProvider()
+        try await Task.sleep(for: .milliseconds(200))
+
+        let task = Task<Void, Error> {
+            try await withCheckedThrowingContinuation { continuation in
+                provider.storeAuthorizationContinuation(continuation)
+            }
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+
+        let unknownStatus = unsafeBitCast(Int32(99), to: CLAuthorizationStatus.self)
+        provider.handleAuthorizationChange(unknownStatus)
+
+        try await task.value
+    }
 }

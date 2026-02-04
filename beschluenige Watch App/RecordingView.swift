@@ -31,12 +31,12 @@ struct RecordingView: View {
                 }
 
                 Text(
-                    "\(workoutManager.currentSession?.sampleCount ?? 0) HR"
-                    + " / \(workoutManager.locationSampleCount) GPS"
-                    + " / \(workoutManager.accelerometerSampleCount) accel"
+                    "\(workoutManager.heartRateSampleCount) HR"
+                        + " / \(workoutManager.locationSampleCount) GPS"
+                        + " / \(workoutManager.accelerometerSampleCount) accel"
                 )
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
 
                 Button {
                     workoutManager.stopRecording()

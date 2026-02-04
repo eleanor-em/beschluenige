@@ -50,7 +50,8 @@ struct RecordingSession: Sendable {
     func saveLocally() throws -> URL {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        let fileName = "hr_\(formatter.string(from: startDate)).csv"
+        let prefix = isRunningTests ? "TEST_" : ""
+        let fileName = "\(prefix)hr_\(formatter.string(from: startDate)).csv"
 
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask

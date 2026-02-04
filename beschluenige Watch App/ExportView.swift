@@ -3,13 +3,24 @@ import os
 
 struct ExportView: View {
     var workoutManager: WorkoutManager
-    @State private var transferState: TransferState = .idle
+    var exportAction: ExportAction
+    @State private var transferState: TransferState
     @Environment(\.dismiss) private var dismiss
 
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "Export"
     )
+
+    init(
+        workoutManager: WorkoutManager,
+        exportAction: ExportAction = ExportAction(),
+        initialTransferState: TransferState = .idle
+    ) {
+        self.workoutManager = workoutManager
+        self.exportAction = exportAction
+        self._transferState = State(initialValue: initialTransferState)
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -20,9 +31,7 @@ struct ExportView: View {
 
                 switch transferState {
                 case .idle:
-                    Button("Send to iPhone") {
-                        sendToPhone(session: session)
-                    }
+                    Button("Send to iPhone", action: handleSendToPhone)
                 case .sending:
                     ProgressView("Sending...")
                 case .sent:
@@ -43,16 +52,26 @@ struct ExportView: View {
                 Text("No recording data")
             }
 
-            Button("Done") { dismiss() }
+            Button("Done", action: handleDismiss)
         }
     }
 
-    private func sendToPhone(session: RecordingSession) {
+    func handleSendToPhone() {
+        guard let session = workoutManager.currentSession else { return }
+        sendToPhone(session: session)
+    }
+
+    func handleDismiss() {
+        dismiss()
+    }
+
+    func sendToPhone(session: RecordingSession) {
         transferState = .sending
-        transferState = ExportAction().execute(session: session)
-        if case .savedLocally(let url) = transferState {
+        let result = exportAction.execute(session: session)
+        transferState = result
+        if case .savedLocally(let url) = result {
             logger.info("CSV saved to \(url.path)")
-        } else if case .failed(let message) = transferState {
+        } else if case .failed(let message) = result {
             logger.error("Export failed: \(message)")
         }
     }

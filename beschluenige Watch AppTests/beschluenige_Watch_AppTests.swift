@@ -160,7 +160,7 @@ struct RecordingSessionTests {
 
         let content = try String(contentsOf: url, encoding: .utf8)
         #expect(content.contains("H,"))
-        #expect(url.lastPathComponent.hasPrefix("hr_"))
+        #expect(url.lastPathComponent.hasPrefix("TEST_hr_"))
         #expect(url.lastPathComponent.hasSuffix(".csv"))
 
         try FileManager.default.removeItem(at: url)

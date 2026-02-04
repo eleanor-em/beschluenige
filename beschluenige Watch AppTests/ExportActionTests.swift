@@ -51,6 +51,10 @@ struct ExportActionTests {
     @Test func executeUsesDefaultPhoneConnectivityOnSimulator() {
         // Default sendViaPhone uses PhoneConnectivityManager.shared
         // On simulator, WCSession is not activated, so this falls back to local save
+        #if !targetEnvironment(simulator)
+        // On a real watch WCSession may be activated, so .sent is valid
+        return
+        #else
         let action = ExportAction()
         let session = RecordingSession(startDate: Date())
         let result = action.execute(session: session)
@@ -59,5 +63,6 @@ struct ExportActionTests {
         if case .sent = result {
             Issue.record("Expected fallback, not .sent on simulator")
         }
+        #endif
     }
 }

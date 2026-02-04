@@ -5,19 +5,25 @@ import os
 final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
     static let shared = PhoneConnectivityManager()
 
-    private let session = WCSession.default
+    private let session: any ConnectivitySession
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "Connectivity"
     )
 
     private override init() {
+        self.session = WCSession.default
+        super.init()
+    }
+
+    init(session: any ConnectivitySession) {
+        self.session = session
         super.init()
     }
 
     func activate() {
-        guard WCSession.isSupported() else { return }
-        session.delegate = self
+        guard session.isDeviceSupported else { return }
+        session.setDelegate(self)
         session.activate()
     }
 
@@ -27,7 +33,8 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         let csvData = recordingSession.csvData()
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        let fileName = "hr_\(formatter.string(from: recordingSession.startDate)).csv"
+        let prefix = isRunningTests ? "TEST_" : ""
+        let fileName = "\(prefix)hr_\(formatter.string(from: recordingSession.startDate)).csv"
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent(fileName)
@@ -47,7 +54,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
         do {
             let (tempURL, metadata) = try prepareFileForTransfer(recordingSession)
-            session.transferFile(tempURL, metadata: metadata)
+            session.sendFile(tempURL, metadata: metadata)
             return true
         } catch {
             logger.error("Failed to write temp CSV: \(error.localizedDescription)")

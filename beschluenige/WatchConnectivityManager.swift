@@ -122,13 +122,14 @@ extension WatchConnectivityManager: WCSessionDelegate {
             }
             try FileManager.default.moveItem(at: fileURL, to: destinationURL)
 
-            let receivedFile = ReceivedFile(
-                fileName: fileName,
-                sampleCount: sampleCount,
-                startDate: Date(timeIntervalSince1970: startInterval)
-            )
+            let startDate = Date(timeIntervalSince1970: startInterval)
 
             Task { @MainActor in
+                let receivedFile = ReceivedFile(
+                    fileName: fileName,
+                    sampleCount: sampleCount,
+                    startDate: startDate
+                )
                 self.receivedFiles.append(receivedFile)
                 self.saveReceivedFiles()
             }

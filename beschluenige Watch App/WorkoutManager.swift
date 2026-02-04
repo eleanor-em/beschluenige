@@ -7,6 +7,7 @@ final class WorkoutManager {
     var currentHeartRate: Double = 0
     var lastSampleDate: Date?
     var currentSession: RecordingSession?
+    var heartRateSampleCount: Int = 0
     var locationSampleCount: Int = 0
     var accelerometerSampleCount: Int = 0
 
@@ -37,6 +38,7 @@ final class WorkoutManager {
         currentSession = RecordingSession(startDate: Date())
         currentHeartRate = 0
         lastSampleDate = nil
+        heartRateSampleCount = 0
         locationSampleCount = 0
         accelerometerSampleCount = 0
 
@@ -74,9 +76,9 @@ final class WorkoutManager {
             logger.error("processSamples(): not currently recording")
             return
         }
-        // isRecording implies currentSession != nil.
-        assert(currentSession != nil)
+        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
         currentSession!.heartRateSamples.append(contentsOf: samples)
+        heartRateSampleCount = currentSession!.heartRateSamples.count
         if let last = samples.last {
             currentHeartRate = last.beatsPerMinute
             lastSampleDate = last.timestamp
@@ -88,8 +90,7 @@ final class WorkoutManager {
             logger.error("processLocationSamples(): not currently recording")
             return
         }
-        // isRecording implies currentSession != nil.
-        assert(currentSession != nil)
+        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
         currentSession!.locationSamples.append(contentsOf: samples)
         locationSampleCount = currentSession!.locationSamples.count
     }
@@ -99,8 +100,7 @@ final class WorkoutManager {
             logger.error("processAccelerometerSamples(): not currently recording")
             return
         }
-        // isRecording implies currentSession != nil.
-        assert(currentSession != nil)
+        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
         currentSession!.accelerometerSamples.append(contentsOf: samples)
         accelerometerSampleCount = currentSession!.accelerometerSamples.count
     }

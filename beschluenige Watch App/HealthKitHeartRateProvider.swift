@@ -34,12 +34,7 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         logger.info("startMonitoring called")
 
         // End any leftover session from a previous run
-        if let old = workoutSession {
-            logger.warning("Found leftover workout session in state \(old.state.rawValue) -- ending it")
-            old.end()
-            workoutSession = nil
-            workoutBuilder = nil
-        }
+        cleanupLeftoverSession()
 
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = .other
@@ -74,13 +69,7 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         // which puts the builder into Error(7) and prevents HR sensor activation.
         logger.info("Waiting for session to reach .running state")
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            if session.state == .running {
-                logger.info("Session already .running, resuming immediately")
-                continuation.resume()
-            } else {
-                logger.info("Session not yet .running (state: \(session.state.rawValue)), storing continuation")
-                sessionRunningContinuation = continuation
-            }
+            handleSessionState(session.state, continuation: continuation)
         }
         logger.info("Session is .running, setting up builder data source")
 
@@ -121,9 +110,33 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         logger.info("stopMonitoring completed")
     }
 
+    // MARK: - Extracted Methods
+
+    func cleanupLeftoverSession() {
+        if let old = workoutSession {
+            logger.warning("Found leftover workout session in state \(old.state.rawValue) -- ending it")
+            old.end()
+            workoutSession = nil
+            workoutBuilder = nil
+        }
+    }
+
+    func handleSessionState(
+        _ state: HKWorkoutSessionState,
+        continuation: CheckedContinuation<Void, Error>
+    ) {
+        if state == .running {
+            logger.info("Session already .running, resuming immediately")
+            continuation.resume()
+        } else {
+            logger.info("Session not yet .running (state: \(state.rawValue)), storing continuation")
+            sessionRunningContinuation = continuation
+        }
+    }
+
     // MARK: - Heart Rate Query
 
-    private func startHeartRateQuery() {
+    func startHeartRateQuery() {
         let heartRateType = HKQuantityType(.heartRate)
         let queryStart = Date()
         let predicate = HKQuery.predicateForSamples(withStart: queryStart, end: nil)
@@ -136,20 +149,28 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
             anchor: nil,
             limit: HKObjectQueryNoLimit
         ) { [weak self] _, samples, _, _, _ in
-            let count = samples?.count ?? 0
-            self?.logger.info("Initial HR query returned \(count) samples")
-            self?.processSamples(samples, unit: bpmUnit)
+            self?.handleQueryResults(samples, unit: bpmUnit)
         }
 
         query.updateHandler = { [weak self] _, samples, _, _, _ in
-            let count = samples?.count ?? 0
-            self?.logger.info("HR query update: \(count) new samples")
-            self?.processSamples(samples, unit: bpmUnit)
+            self?.handleQueryUpdate(samples, unit: bpmUnit)
         }
 
         healthStore.execute(query)
         heartRateQuery = query
         logger.info("Anchored HR query executing")
+    }
+
+    func handleQueryResults(_ samples: [HKSample]?, unit: HKUnit) {
+        let count = samples?.count ?? 0
+        logger.info("Initial HR query returned \(count) samples")
+        processSamples(samples, unit: unit)
+    }
+
+    func handleQueryUpdate(_ samples: [HKSample]?, unit: HKUnit) {
+        let count = samples?.count ?? 0
+        logger.info("HR query update: \(count) new samples")
+        processSamples(samples, unit: unit)
     }
 
     static func convertSamples(_ samples: [HKSample]?, unit: HKUnit) -> [HeartRateSample] {
@@ -163,11 +184,53 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         }
     }
 
-    private func processSamples(_ samples: [HKSample]?, unit: HKUnit) {
+    func processSamples(_ samples: [HKSample]?, unit: HKUnit) {
         let newSamples = Self.convertSamples(samples, unit: unit)
         if !newSamples.isEmpty {
             sampleHandler?(newSamples)
         }
+    }
+
+    // MARK: - Test Seams
+
+    func storeSessionRunningContinuation(_ continuation: CheckedContinuation<Void, Error>) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "storeSessionRunningContinuation is only allowed in test cases"
+        )
+        sessionRunningContinuation = continuation
+    }
+
+    func setWorkoutSession(_ session: HKWorkoutSession?) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setWorkoutSession is only allowed in test cases"
+        )
+        workoutSession = session
+    }
+
+    func setHeartRateQuery(_ query: HKAnchoredObjectQuery?) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setHeartRateQuery is only allowed in test cases"
+        )
+        heartRateQuery = query
+    }
+
+    func getHeartRateQuery() -> HKAnchoredObjectQuery? {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "getHeartRateQuery is only allowed in test cases"
+        )
+        return heartRateQuery
+    }
+
+    func setSampleHandler(_ handler: (@Sendable ([HeartRateSample]) -> Void)?) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setSampleHandler is only allowed in test cases"
+        )
+        sampleHandler = handler
     }
 }
 

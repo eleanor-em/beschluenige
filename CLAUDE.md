@@ -40,19 +40,7 @@ Key rules: short variable names are allowed (`min_length: 1`), trailing commas a
 
 ## Test coverage
 
-Add `-enableCodeCoverage YES` and `-resultBundlePath` to the test command:
-
-```
-xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath ./TestResults.xcresult
-```
-
-View the per-file coverage report:
-
-```
-xcrun xccov view --report TestResults.xcresult
-```
-
-Delete `TestResults.xcresult` before re-running, since `-resultBundlePath` fails if the bundle already exists.
+Use the `/coverage` skill to run tests with coverage and get a filtered summary report. 
 
 ## Code style
 

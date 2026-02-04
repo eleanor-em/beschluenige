@@ -2,6 +2,17 @@ import Foundation
 import Testing
 @testable import beschluenige_Watch_App
 
+private final class Flag: @unchecked Sendable {
+    var value = false
+}
+
+private final class Collector<T: Sendable>: @unchecked Sendable {
+    var items: [T] = []
+    func append(_ item: T) { items.append(item) }
+    func append(contentsOf newItems: [T]) { items.append(contentsOf: newItems) }
+    func replace(with newItems: [T]) { items = newItems }
+}
+
 // MARK: - MockHeartRateProvider
 
 @MainActor
@@ -24,14 +35,14 @@ struct MockHeartRateProviderTests {
     @Test func sendSamplesDeliversToHandler() async throws {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 60)
-        var received: [HeartRateSample] = []
+        let received = Collector<HeartRateSample>()
         try await mock.startMonitoring { samples in
-            received = samples
+            received.replace(with: samples)
         }
         mock.sendSamples([
             HeartRateSample(timestamp: Date(), beatsPerMinute: 150),
         ])
-        #expect(received.count == 1)
+        #expect(received.items.count == 1)
     }
 
     @Test func stopMonitoringDelegatesToRealProvider() async throws {
@@ -51,26 +62,26 @@ struct MockHeartRateProviderTests {
     @Test func fallbackActivatesWhenNoRealSamples() async throws {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.1)
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
-        var received: [HeartRateSample] = []
+        let received = Collector<HeartRateSample>()
         try await mock.startMonitoring { samples in
             received.append(contentsOf: samples)
         }
 
         // Timeout fires at 0.1s, then fallback timer fires every 1s
-        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(callbackFired)
-        #expect(!received.isEmpty)
+        #expect(callbackFired.value)
+        #expect(!received.items.isEmpty)
     }
 
     @Test func fallbackSuppressedWhenRealSamplesReceived() async throws {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.2)
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
         try await mock.startMonitoring { _ in }
 
@@ -79,23 +90,23 @@ struct MockHeartRateProviderTests {
             HeartRateSample(timestamp: Date(), beatsPerMinute: 120),
         ])
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        try await Task.sleep(for: .milliseconds(500))
 
-        #expect(!callbackFired)
+        #expect(!callbackFired.value)
     }
 
     @Test func stopInvalidatesFallbackTimer() async throws {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.2)
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
         try await mock.startMonitoring { _ in }
         mock.stopMonitoring()
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        try await Task.sleep(for: .milliseconds(500))
 
-        #expect(!callbackFired)
+        #expect(!callbackFired.value)
     }
 }
 
@@ -130,9 +141,9 @@ struct MockLocationProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 60
         )
-        var received: [LocationSample] = []
+        let received = Collector<LocationSample>()
         try await mock.startMonitoring { samples in
-            received = samples
+            received.replace(with: samples)
         }
         mock.sendSamples([
             LocationSample(
@@ -141,7 +152,7 @@ struct MockLocationProviderTests {
                 speed: 3.0, course: 90.0
             ),
         ])
-        #expect(received.count == 1)
+        #expect(received.items.count == 1)
     }
 
     @Test func stopMonitoringDelegatesToRealProvider() async throws {
@@ -170,18 +181,18 @@ struct MockLocationProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 0.1
         )
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
-        var received: [LocationSample] = []
+        let received = Collector<LocationSample>()
         try await mock.startMonitoring { samples in
             received.append(contentsOf: samples)
         }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(callbackFired)
-        #expect(!received.isEmpty)
+        #expect(callbackFired.value)
+        #expect(!received.items.isEmpty)
     }
 
     @Test func fallbackSuppressedWhenRealSamplesReceived() async throws {
@@ -190,8 +201,8 @@ struct MockLocationProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 0.2
         )
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
         try await mock.startMonitoring { _ in }
 
@@ -203,23 +214,23 @@ struct MockLocationProviderTests {
             ),
         ])
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        try await Task.sleep(for: .milliseconds(500))
 
-        #expect(!callbackFired)
+        #expect(!callbackFired.value)
     }
 
     @Test func startMonitoringCreatesProviderIfNeeded() async throws {
-        var created = false
+        let created = Flag()
         let stub = StubLocationProvider()
         let mock = MockLocationProvider(
             realProviderFactory: {
-                created = true
+                created.value = true
                 return stub
             },
             timeoutInterval: 60
         )
         try await mock.startMonitoring { _ in }
-        #expect(created)
+        #expect(created.value)
     }
 }
 
@@ -244,14 +255,14 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 60
         )
-        var received: [AccelerometerSample] = []
+        let received = Collector<AccelerometerSample>()
         try mock.startMonitoring { samples in
-            received = samples
+            received.replace(with: samples)
         }
         mock.sendSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
         ])
-        #expect(received.count == 1)
+        #expect(received.items.count == 1)
     }
 
     @Test func stopMonitoringDelegatesToRealProvider() throws {
@@ -281,18 +292,18 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 0.1
         )
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
-        var received: [AccelerometerSample] = []
+        let received = Collector<AccelerometerSample>()
         try mock.startMonitoring { samples in
             received.append(contentsOf: samples)
         }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(callbackFired)
-        #expect(!received.isEmpty)
+        #expect(callbackFired.value)
+        #expect(!received.items.isEmpty)
     }
 
     @Test func fallbackActivatesWhenNoRealSamples() async throws {
@@ -301,18 +312,18 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 0.1
         )
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
-        var received: [AccelerometerSample] = []
+        let received = Collector<AccelerometerSample>()
         try mock.startMonitoring { samples in
             received.append(contentsOf: samples)
         }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(callbackFired)
-        #expect(!received.isEmpty)
+        #expect(callbackFired.value)
+        #expect(!received.items.isEmpty)
     }
 
     @Test func fallbackSuppressedWhenRealSamplesReceived() async throws {
@@ -321,8 +332,8 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 0.2
         )
-        var callbackFired = false
-        mock.onFallbackActivated = { callbackFired = true }
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
 
         try mock.startMonitoring { _ in }
 
@@ -330,9 +341,9 @@ struct MockMotionProviderTests {
             AccelerometerSample(timestamp: Date(), x: 0.1, y: 0.0, z: 1.0),
         ])
 
-        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        try await Task.sleep(for: .milliseconds(500))
 
-        #expect(!callbackFired)
+        #expect(!callbackFired.value)
     }
 
     @Test func fallbackGenerates100SamplesPerBatch() async throws {
@@ -342,15 +353,15 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.1
         )
 
-        var batches: [[AccelerometerSample]] = []
+        let batches = Collector<[AccelerometerSample]>()
         try mock.startMonitoring { samples in
             batches.append(samples)
         }
 
-        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+        try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(!batches.isEmpty)
-        if let first = batches.first {
+        #expect(!batches.items.isEmpty)
+        if let first = batches.items.first {
             #expect(first.count == 100)
         }
     }

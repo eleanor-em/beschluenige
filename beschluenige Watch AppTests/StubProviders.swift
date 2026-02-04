@@ -5,9 +5,13 @@ final class StubHeartRateProvider: HeartRateProvider, @unchecked Sendable {
     var authorizationRequested = false
     var monitoringStarted = false
     var monitoringStopped = false
+    var shouldThrowOnAuthorization = false
     private var handler: (@Sendable ([HeartRateSample]) -> Void)?
 
     func requestAuthorization() async throws {
+        if shouldThrowOnAuthorization {
+            throw StubProviderError.authorizationFailed
+        }
         authorizationRequested = true
     }
 
@@ -53,6 +57,10 @@ final class StubLocationProvider: LocationProvider, @unchecked Sendable {
     func sendSamples(_ samples: [LocationSample]) {
         handler?(samples)
     }
+}
+
+enum StubProviderError: Error {
+    case authorizationFailed
 }
 
 final class StubMotionProvider: MotionProvider, @unchecked Sendable {

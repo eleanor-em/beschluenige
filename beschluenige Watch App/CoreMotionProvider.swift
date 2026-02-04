@@ -8,6 +8,8 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
     private var sampleHandler: (@Sendable ([AccelerometerSample]) -> Void)?
     private var batch: [AccelerometerSample] = []
     private var bootTimeDelta: TimeInterval = 0
+    private var accelerometerHandler: ((CMAccelerometerData?, (any Error)?) -> Void)?
+    private var accelerometerAvailableOverride: Bool?
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "CoreMotion"
@@ -21,9 +23,25 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
     func startMonitoring(
         handler: @escaping @Sendable ([AccelerometerSample]) -> Void
     ) throws {
-        guard motionManager.isAccelerometerAvailable else {
-            logger.error("Accelerometer not available")
-            throw MotionError.accelerometerUnavailable
+        try startMonitoring(handler: handler, startRealUpdates: true)
+    }
+
+    func startMonitoring(
+        handler: @escaping @Sendable ([AccelerometerSample]) -> Void,
+        startRealUpdates: Bool
+    ) throws {
+        if startRealUpdates {
+            let isAvailable = accelerometerAvailableOverride
+                ?? motionManager.isAccelerometerAvailable
+            guard isAvailable else {
+                logger.error("Accelerometer not available")
+                throw MotionError.accelerometerUnavailable
+            }
+        } else {
+            preconditionExcludeCoverage(
+                isRunningTests,
+                "startRealUpdates: false is only allowed in test cases"
+            )
         }
 
         sampleHandler = handler
@@ -31,8 +49,7 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
         bootTimeDelta = Date().timeIntervalSinceReferenceDate
             - ProcessInfo.processInfo.systemUptime
 
-        motionManager.accelerometerUpdateInterval = 0.01  // 100 Hz
-        motionManager.startAccelerometerUpdates(to: operationQueue) { [weak self] data, error in
+        let handler: (CMAccelerometerData?, (any Error)?) -> Void = { [weak self] data, error in
             guard let self, let data else {
                 if let error {
                     self?.logger.error(
@@ -55,11 +72,16 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
                 self?.addToBatch(sample)
             }
         }
+        accelerometerHandler = handler
 
-        logger.info("Started accelerometer updates at 100 Hz")
+        if startRealUpdates {
+            motionManager.accelerometerUpdateInterval = 0.01  // 100 Hz
+            motionManager.startAccelerometerUpdates(to: operationQueue, withHandler: handler)
+            logger.info("Started accelerometer updates at 100 Hz")
+        }
     }
 
-    private func addToBatch(_ sample: AccelerometerSample) {
+    func addToBatch(_ sample: AccelerometerSample) {
         batch.append(sample)
         if batch.count >= 100 {
             sampleHandler?(batch)
@@ -77,7 +99,50 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
         }
 
         sampleHandler = nil
+        accelerometerHandler = nil
         logger.info("Stopped accelerometer updates")
+    }
+
+    // MARK: - Test Seams
+
+    func getAccelerometerHandler() -> ((CMAccelerometerData?, (any Error)?) -> Void)? {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "getAccelerometerHandler is only allowed in test cases"
+        )
+        return accelerometerHandler
+    }
+
+    func setSampleHandler(_ handler: (@Sendable ([AccelerometerSample]) -> Void)?) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setSampleHandler is only allowed in test cases"
+        )
+        sampleHandler = handler
+    }
+
+    func setBatch(_ newBatch: [AccelerometerSample]) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setBatch is only allowed in test cases"
+        )
+        batch = newBatch
+    }
+
+    func setAccelerometerAvailableOverride(_ value: Bool?) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setAccelerometerAvailableOverride is only allowed in test cases"
+        )
+        accelerometerAvailableOverride = value
+    }
+
+    func getBatch() -> [AccelerometerSample] {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "getBatch is only allowed in test cases"
+        )
+        return batch
     }
 }
 

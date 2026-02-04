@@ -23,8 +23,8 @@ struct ContentView: View {
                                 .foregroundStyle(.red)
                             Text(
                                 "beschluenige needs permission to read heart rate and write"
-                                + " workouts. Open Settings > Privacy & Security > Health >"
-                                + " beschluenige and enable all permissions."
+                                    + " workouts. Open Settings > Privacy & Security > Health >"
+                                    + " beschluenige and enable all permissions."
                             )
                             .font(.subheadline)
                             .foregroundStyle(.secondary)

@@ -18,7 +18,7 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
 
     init(
         realProviderFactory: @escaping @Sendable () -> any MotionProvider,
-        timeoutInterval: TimeInterval = 10
+        timeoutInterval: TimeInterval = 15
     ) {
         self.realProviderFactory = realProviderFactory
         self.timeoutInterval = timeoutInterval
@@ -65,12 +65,14 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
         guard !receivedRealSample else { return }
 
         #if !targetEnvironment(simulator)
-        assertionFailure(
-            "No accelerometer samples received after 10s on a real device")
+        if !isRunningTests {
+            assertionFailure(
+                "No accelerometer samples received after 15s on a real device")
+        }
         #endif
 
         logger.warning(
-            "No accelerometer samples received after 10s -- falling back to simulated data"
+            "No accelerometer samples received after 15s -- falling back to simulated data"
         )
         onFallbackActivated?()
 

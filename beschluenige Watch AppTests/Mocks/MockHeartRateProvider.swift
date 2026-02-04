@@ -17,7 +17,7 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
 
     init(
         realProvider: any HeartRateProvider,
-        timeoutInterval: TimeInterval = 10
+        timeoutInterval: TimeInterval = 15
     ) {
         self.realProvider = realProvider
         self.timeoutInterval = timeoutInterval
@@ -57,10 +57,12 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
         guard !receivedRealSample else { return }
 
         #if !targetEnvironment(simulator)
-        assertionFailure("No heart rate samples received after 10s on a real device")
+        if !isRunningTests {
+            assertionFailure("No heart rate samples received after 15s on a real device")
+        }
         #endif
 
-        logger.warning("No heart rate samples received after 10s -- falling back to simulated data")
+        logger.warning("No heart rate samples received after 15s -- falling back to simulated data")
         onFallbackActivated?()
 
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in

@@ -3,7 +3,7 @@ import Foundation
 import os
 
 final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerDelegate,
-    @unchecked Sendable {
+                                  @unchecked Sendable {
     private let locationManager = CLLocationManager()
     private var sampleHandler: (@Sendable ([LocationSample]) -> Void)?
     private var authorizationContinuation: CheckedContinuation<Void, Error>?
@@ -21,7 +21,11 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
 
     func requestAuthorization() async throws {
         let status = locationManager.authorizationStatus
-        if status == .authorizedWhenInUse || status == .authorizedAlways {
+        try await requestAuthorization(currentStatus: status)
+    }
+
+    func requestAuthorization(currentStatus: CLAuthorizationStatus) async throws {
+        if currentStatus == .authorizedWhenInUse || currentStatus == .authorizedAlways {
             return
         }
 
@@ -42,8 +46,8 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
         startRealUpdates: Bool
     ) async throws {
         if !startRealUpdates {
-            precondition(
-                ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil,
+            preconditionExcludeCoverage(
+                isRunningTests,
                 "startRealUpdates: false is only allowed in test cases"
             )
         }
@@ -99,7 +103,7 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
     }
 
     func storeAuthorizationContinuation(_ continuation: CheckedContinuation<Void, Error>) {
-        precondition(
+        preconditionExcludeCoverage(
             ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil,
             "storeAuthorizationContinuation is only allowed in test cases"
         )

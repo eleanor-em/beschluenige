@@ -2,22 +2,17 @@ import XCTest
 
 final class BeschluenigeWatchAppUITests: XCTestCase {
 
-    private var isSimulator: Bool {
-        #if targetEnvironment(simulator)
-        return true
-        #else
-        return false
-        #endif
-    }
+    private var app: XCUIApplication!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
         continueAfterFailure = false
+        app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
     }
 
     @MainActor
     func testStartButtonExists() throws {
-        let app = XCUIApplication()
         app.launch()
 
         XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
@@ -25,8 +20,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testStartButtonBeginsRecording() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -37,8 +30,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testStopButtonReturnsToStart() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -50,8 +41,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportButtonAppearsAfterRecording() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -63,8 +52,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testRecordingViewDisplaysHeartRateInfo() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -83,8 +70,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportViewShowsButtons() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -100,8 +85,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportSendFallsBackToLocalSave() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -125,8 +108,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportDoneButtonDismisses() throws {
-        try XCTSkipIf(isSimulator, "HealthKit workout sessions require a real device")
-        let app = XCUIApplication()
         app.launch()
 
         app.buttons["Start"].tap()
@@ -144,14 +125,17 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
     }
 
-    // testHeartRateDisplayedAfterSimulatedData removed:
-    // Mock providers (and the "Simulated data" fallback) now live in the test target only.
+    @MainActor
+    func testExportSheetPresents() throws {
+        app.launch()
 
-    // Commented out for now because this makes the tests take forever.
-//    @MainActor
-//    func testLaunchPerformance() throws {
-//        measure(metrics: [XCTApplicationLaunchMetric()]) {
-//            XCUIApplication().launch()
-//        }
-//    }
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+
+        app.buttons["Stop"].tap()
+        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
+
+        app.buttons["Export Data"].tap()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+    }
 }
