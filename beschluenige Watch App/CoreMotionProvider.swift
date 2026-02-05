@@ -3,131 +3,189 @@ import Foundation
 import os
 
 final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
-    private let motionManager = CMMotionManager()
-    private let operationQueue = OperationQueue()
-    private var sampleHandler: (@Sendable ([AccelerometerSample]) -> Void)?
-    private var batch: [AccelerometerSample] = []
+    private let manager = CMBatchedSensorManager()
+    private var accelTask: Task<Void, Never>?
+    private var dmTask: Task<Void, Never>?
     private var bootTimeDelta: TimeInterval = 0
-    private var accelerometerHandler: ((CMAccelerometerData?, (any Error)?) -> Void)?
     private var accelerometerAvailableOverride: Bool?
+    private var deviceMotionAvailableOverride: Bool?
+    nonisolated(unsafe) private var accelStreamFactory:
+        @Sendable () -> AsyncThrowingStream<[CMAccelerometerData], any Error>
+    nonisolated(unsafe) private var dmStreamFactory:
+        @Sendable () -> AsyncThrowingStream<[CMDeviceMotion], any Error>
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
         category: "CoreMotion"
     )
 
     init() {
-        operationQueue.name = "net.lnor.beschluenige.accelerometer"
-        operationQueue.maxConcurrentOperationCount = 1
-    }
-
-    func startMonitoring(
-        handler: @escaping @Sendable ([AccelerometerSample]) -> Void
-    ) throws {
-        try startMonitoring(handler: handler, startRealUpdates: true)
-    }
-
-    func startMonitoring(
-        handler: @escaping @Sendable ([AccelerometerSample]) -> Void,
-        startRealUpdates: Bool
-    ) throws {
-        if startRealUpdates {
-            let isAvailable = accelerometerAvailableOverride
-                ?? motionManager.isAccelerometerAvailable
-            guard isAvailable else {
-                logger.error("Accelerometer not available")
-                throw MotionError.accelerometerUnavailable
+        let mgr = manager
+        #if targetEnvironment(simulator)
+        // On simulator, CMBatchedSensorManager streams are not available.
+        // Tests must inject stream factories via setAccelStreamFactory/setDMStreamFactory.
+        // The availability check in startMonitoring will throw before these are called
+        // unless the test also sets stream factories.
+        accelStreamFactory = { AsyncThrowingStream { $0.finish() } }
+        dmStreamFactory = { AsyncThrowingStream { $0.finish() } }
+        #else
+        accelStreamFactory = {
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        for try await batch in mgr.accelerometerUpdates() {
+                            continuation.yield(batch)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
             }
-        } else {
-            preconditionExcludeCoverage(
-                isRunningTests,
-                "startRealUpdates: false is only allowed in test cases"
-            )
+        }
+        dmStreamFactory = {
+            AsyncThrowingStream { continuation in
+                let task = Task {
+                    do {
+                        for try await batch in mgr.deviceMotionUpdates() {
+                            continuation.yield(batch)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        }
+        #endif
+    }
+
+    func startMonitoring(
+        accelerometerHandler: @escaping @Sendable ([AccelerometerSample]) -> Void,
+        deviceMotionHandler: @escaping @Sendable ([DeviceMotionSample]) -> Void
+    ) throws {
+        let accelAvailable = accelerometerAvailableOverride
+            ?? CMBatchedSensorManager.isAccelerometerSupported
+        guard accelAvailable else {
+            logger.error("Accelerometer not available")
+            throw MotionError.accelerometerUnavailable
+        }
+        let dmAvailable = deviceMotionAvailableOverride
+            ?? CMBatchedSensorManager.isDeviceMotionSupported
+        guard dmAvailable else {
+            logger.error("Device motion not available")
+            throw MotionError.deviceMotionUnavailable
         }
 
-        sampleHandler = handler
-        batch = []
         bootTimeDelta = Date().timeIntervalSinceReferenceDate
             - ProcessInfo.processInfo.systemUptime
 
-        let handler: (CMAccelerometerData?, (any Error)?) -> Void = { [weak self] data, error in
-            guard let self, let data else {
-                if let error {
-                    self?.logger.error(
-                        "Accelerometer error: \(error.localizedDescription)")
-                }
-                return
-            }
+        let delta = bootTimeDelta
+        let makeAccelStream = accelStreamFactory
+        let makeDMStream = dmStreamFactory
 
-            let delta = self.bootTimeDelta
-            let wallTimestamp = Date(
-                timeIntervalSinceReferenceDate: data.timestamp + delta)
-            let sample = AccelerometerSample(
-                timestamp: wallTimestamp,
-                x: data.acceleration.x,
-                y: data.acceleration.y,
-                z: data.acceleration.z
-            )
-
-            Task { @MainActor [weak self] in
-                self?.addToBatch(sample)
-            }
+        accelTask = Task.detached {
+            let stream = makeAccelStream()
+            await Self.iterateAccelStream(stream, delta: delta, handler: accelerometerHandler)
         }
-        accelerometerHandler = handler
 
-        if startRealUpdates {
-            motionManager.accelerometerUpdateInterval = 0.01  // 100 Hz
-            motionManager.startAccelerometerUpdates(to: operationQueue, withHandler: handler)
-            logger.info("Started accelerometer updates at 100 Hz")
+        dmTask = Task.detached {
+            let stream = makeDMStream()
+            await Self.iterateDMStream(stream, delta: delta, handler: deviceMotionHandler)
+        }
+
+        logger.info("Started batched accelerometer (800 Hz) and device motion (200 Hz) updates")
+    }
+
+    static func iterateAccelStream(
+        _ stream: AsyncThrowingStream<[CMAccelerometerData], any Error>,
+        delta: TimeInterval,
+        handler: @escaping @Sendable ([AccelerometerSample]) -> Void
+    ) async {
+        do {
+            for try await batch in stream {
+                let samples = convertAccelerometerBatch(batch, delta: delta)
+                handler(samples)
+            }
+        } catch {
+            if !Task.isCancelled {
+                Logger(
+                    subsystem: "net.lnor.beschluenige.watchkitapp",
+                    category: "CoreMotion"
+                ).error("Accelerometer stream error: \(error.localizedDescription)")
+            }
         }
     }
 
-    func addToBatch(_ sample: AccelerometerSample) {
-        batch.append(sample)
-        if batch.count >= 100 {
-            sampleHandler?(batch)
-            batch = []
+    static func iterateDMStream(
+        _ stream: AsyncThrowingStream<[CMDeviceMotion], any Error>,
+        delta: TimeInterval,
+        handler: @escaping @Sendable ([DeviceMotionSample]) -> Void
+    ) async {
+        do {
+            for try await batch in stream {
+                let samples = convertDeviceMotionBatch(batch, delta: delta)
+                handler(samples)
+            }
+        } catch {
+            if !Task.isCancelled {
+                Logger(
+                    subsystem: "net.lnor.beschluenige.watchkitapp",
+                    category: "CoreMotion"
+                ).error("Device motion stream error: \(error.localizedDescription)")
+            }
         }
     }
 
     func stopMonitoring() {
-        motionManager.stopAccelerometerUpdates()
+        accelTask?.cancel()
+        accelTask = nil
+        dmTask?.cancel()
+        dmTask = nil
+        logger.info("Stopped accelerometer and device motion updates")
+    }
 
-        // Flush remaining samples
-        if !batch.isEmpty {
-            sampleHandler?(batch)
-            batch = []
+    // MARK: - Conversion
+
+    static func convertAccelerometerBatch(
+        _ batch: [CMAccelerometerData],
+        delta: TimeInterval
+    ) -> [AccelerometerSample] {
+        batch.map { data in
+            AccelerometerSample(
+                timestamp: Date(
+                    timeIntervalSinceReferenceDate: data.timestamp + delta),
+                x: data.acceleration.x,
+                y: data.acceleration.y,
+                z: data.acceleration.z
+            )
         }
+    }
 
-        sampleHandler = nil
-        accelerometerHandler = nil
-        logger.info("Stopped accelerometer updates")
+    static func convertDeviceMotionBatch(
+        _ batch: [CMDeviceMotion],
+        delta: TimeInterval
+    ) -> [DeviceMotionSample] {
+        batch.map { motion in
+            DeviceMotionSample(
+                timestamp: Date(
+                    timeIntervalSinceReferenceDate: motion.timestamp + delta),
+                roll: motion.attitude.roll,
+                pitch: motion.attitude.pitch,
+                yaw: motion.attitude.yaw,
+                rotationRateX: motion.rotationRate.x,
+                rotationRateY: motion.rotationRate.y,
+                rotationRateZ: motion.rotationRate.z,
+                userAccelerationX: motion.userAcceleration.x,
+                userAccelerationY: motion.userAcceleration.y,
+                userAccelerationZ: motion.userAcceleration.z,
+                heading: motion.heading
+            )
+        }
     }
 
     // MARK: - Test Seams
-
-    func getAccelerometerHandler() -> ((CMAccelerometerData?, (any Error)?) -> Void)? {
-        preconditionExcludeCoverage(
-            isRunningTests,
-            "getAccelerometerHandler is only allowed in test cases"
-        )
-        return accelerometerHandler
-    }
-
-    func setSampleHandler(_ handler: (@Sendable ([AccelerometerSample]) -> Void)?) {
-        preconditionExcludeCoverage(
-            isRunningTests,
-            "setSampleHandler is only allowed in test cases"
-        )
-        sampleHandler = handler
-    }
-
-    func setBatch(_ newBatch: [AccelerometerSample]) {
-        preconditionExcludeCoverage(
-            isRunningTests,
-            "setBatch is only allowed in test cases"
-        )
-        batch = newBatch
-    }
 
     func setAccelerometerAvailableOverride(_ value: Bool?) {
         preconditionExcludeCoverage(
@@ -137,15 +195,36 @@ final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
         accelerometerAvailableOverride = value
     }
 
-    func getBatch() -> [AccelerometerSample] {
+    func setDeviceMotionAvailableOverride(_ value: Bool?) {
         preconditionExcludeCoverage(
             isRunningTests,
-            "getBatch is only allowed in test cases"
+            "setDeviceMotionAvailableOverride is only allowed in test cases"
         )
-        return batch
+        deviceMotionAvailableOverride = value
+    }
+
+    func setAccelStreamFactory(
+        _ factory: @escaping @Sendable () -> AsyncThrowingStream<[CMAccelerometerData], any Error>
+    ) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setAccelStreamFactory is only allowed in test cases"
+        )
+        accelStreamFactory = factory
+    }
+
+    func setDMStreamFactory(
+        _ factory: @escaping @Sendable () -> AsyncThrowingStream<[CMDeviceMotion], any Error>
+    ) {
+        preconditionExcludeCoverage(
+            isRunningTests,
+            "setDMStreamFactory is only allowed in test cases"
+        )
+        dmStreamFactory = factory
     }
 }
 
 enum MotionError: Error {
     case accelerometerUnavailable
+    case deviceMotionUnavailable
 }

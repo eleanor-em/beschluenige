@@ -2,6 +2,13 @@ import Foundation
 import Testing
 @testable import beschluenige_Watch_App
 
+private let testDMSample = DeviceMotionSample(
+    timestamp: Date(), roll: 0.1, pitch: 0.2, yaw: 0.3,
+    rotationRateX: 1.0, rotationRateY: 2.0, rotationRateZ: 3.0,
+    userAccelerationX: 0.01, userAccelerationY: 0.02, userAccelerationZ: 0.03,
+    heading: 90.0
+)
+
 struct RecordingSessionTests {
 
     @Test func sampleCount() {
@@ -26,7 +33,8 @@ struct RecordingSessionTests {
         session.accelerometerSamples.append(AccelerometerSample(
             timestamp: Date(), x: 0.1, y: -0.2, z: 0.98
         ))
-        #expect(session.totalSampleCount == 3)
+        session.deviceMotionSamples.append(testDMSample)
+        #expect(session.totalSampleCount == 4)
     }
 
     @Test func csvHeader() {
@@ -34,7 +42,13 @@ struct RecordingSessionTests {
         let csv = String(data: session.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
         #expect(lines.count == 1)
-        #expect(lines[0] == "type,timestamp,bpm,lat,lon,alt,h_acc,v_acc,speed,course,ax,ay,az")
+        #expect(
+            lines[0]
+                == "type,timestamp,bpm,"
+                + "lat,lon,alt,h_acc,v_acc,speed,course,"
+                + "ax,ay,az,"
+                + "roll,pitch,yaw,rot_x,rot_y,rot_z,user_ax,user_ay,user_az,heading"
+        )
     }
 
     @Test func csvContainsHeartRateSamples() {
@@ -51,8 +65,9 @@ struct RecordingSessionTests {
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 3)
-        #expect(lines[1] == "H,1000.0,72.0,,,,,,,,,,")
-        #expect(lines[2] == "H,1005.0,148.0,,,,,,,,,,")
+        // 23 columns: type,ts,bpm + 20 empty = 22 commas
+        #expect(lines[1].hasPrefix("H,1000.0,72.0,"))
+        #expect(lines[1].split(separator: ",", omittingEmptySubsequences: false).count == 23)
     }
 
     @Test func csvContainsLocationSamples() {
@@ -71,7 +86,8 @@ struct RecordingSessionTests {
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 2)
-        #expect(lines[1] == "G,2000.0,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,,,")
+        #expect(lines[1].hasPrefix("G,2000.0,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,"))
+        #expect(lines[1].split(separator: ",", omittingEmptySubsequences: false).count == 23)
     }
 
     @Test func csvContainsAccelerometerSamples() {
@@ -84,9 +100,42 @@ struct RecordingSessionTests {
 
         let csv = String(data: session.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
+        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
 
         #expect(lines.count == 2)
-        #expect(lines[1] == "A,3000.0,,,,,,,,0.01,-0.02,0.98")
+        #expect(fields.count == 23)
+        #expect(fields[0] == "A")
+        #expect(fields[10] == "0.01")
+        #expect(fields[11] == "-0.02")
+        #expect(fields[12] == "0.98")
+    }
+
+    @Test func csvContainsDeviceMotionSamples() {
+        let t = Date(timeIntervalSince1970: 4000)
+
+        var session = RecordingSession(startDate: t)
+        session.deviceMotionSamples = [
+            DeviceMotionSample(
+                timestamp: t, roll: 0.1, pitch: 0.2, yaw: 0.3,
+                rotationRateX: 1.0, rotationRateY: 2.0, rotationRateZ: 3.0,
+                userAccelerationX: 0.01, userAccelerationY: 0.02, userAccelerationZ: 0.03,
+                heading: 90.0
+            ),
+        ]
+
+        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let lines = csv.split(separator: "\n")
+        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
+
+        #expect(lines.count == 2)
+        #expect(fields.count == 23)
+        #expect(fields[0] == "M")
+        #expect(fields[13] == "0.1")   // roll
+        #expect(fields[14] == "0.2")   // pitch
+        #expect(fields[15] == "0.3")   // yaw
+        #expect(fields[16] == "1.0")   // rot_x
+        #expect(fields[19] == "0.01")  // user_ax
+        #expect(fields[22] == "90.0")  // heading
     }
 
     @Test func csvSortsByTimestamp() {
@@ -95,7 +144,6 @@ struct RecordingSessionTests {
         let t3 = Date(timeIntervalSince1970: 1002)
 
         var session = RecordingSession(startDate: t1)
-        // Add in non-chronological order across types
         session.accelerometerSamples = [
             AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
         ]
@@ -128,7 +176,7 @@ struct RecordingSessionTests {
 
         let csv = String(data: session.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
-        let fields = lines[1].split(separator: ",")
+        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
 
         let timestamp = Double(fields[1])!
         #expect(abs(timestamp - 1706812345.678) < 0.001)
@@ -222,7 +270,6 @@ struct WorkoutManagerTests {
             HeartRateSample(timestamp: t.addingTimeInterval(1), beatsPerMinute: 130),
         ])
 
-        // Give the MainActor task a chance to run
         try await Task.sleep(for: .milliseconds(50))
 
         #expect(manager.currentSession?.sampleCount == 2)
@@ -268,7 +315,7 @@ struct WorkoutManagerTests {
 
         try await manager.startRecording()
 
-        stubMotion.sendSamples([
+        stubMotion.sendAccelSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
             AccelerometerSample(timestamp: Date(), x: 0.2, y: -0.1, z: 0.97),
         ])
@@ -277,6 +324,26 @@ struct WorkoutManagerTests {
 
         #expect(manager.currentSession?.accelerometerSamples.count == 2)
         #expect(manager.accelerometerSampleCount == 2)
+    }
+
+    @Test func deviceMotionSamplesFlowThroughProvider() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+
+        try await manager.startRecording()
+
+        stubMotion.sendDMSamples([testDMSample, testDMSample])
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.currentSession?.deviceMotionSamples.count == 2)
+        #expect(manager.deviceMotionSampleCount == 2)
     }
 
     @Test func emptySampleArrayDoesNotUpdateHeartRate() async throws {
@@ -309,16 +376,12 @@ struct WorkoutManagerTests {
 
         try await manager.startRecording()
 
-        // Send samples while recording -- queues a MainActor Task but
-        // it cannot run until we yield.
         stub.sendSamples([
             HeartRateSample(timestamp: Date(), beatsPerMinute: 99),
         ])
 
-        // Stop before the queued Task executes.
         manager.stopRecording()
 
-        // Yield so the queued Task runs and hits the guard.
         try await Task.sleep(for: .milliseconds(50))
 
         #expect(manager.currentSession?.sampleCount == 0)
@@ -363,7 +426,7 @@ struct WorkoutManagerTests {
 
         try await manager.startRecording()
 
-        stubMotion.sendSamples([
+        stubMotion.sendAccelSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
         ])
 
@@ -372,5 +435,26 @@ struct WorkoutManagerTests {
         try await Task.sleep(for: .milliseconds(50))
 
         #expect(manager.accelerometerSampleCount == 0)
+    }
+
+    @Test func stopClearsDeviceMotionSampleDelivery() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+
+        try await manager.startRecording()
+
+        stubMotion.sendDMSamples([testDMSample])
+
+        manager.stopRecording()
+
+        try await Task.sleep(for: .milliseconds(50))
+
+        #expect(manager.deviceMotionSampleCount == 0)
     }
 }

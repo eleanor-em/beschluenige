@@ -245,22 +245,52 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 60
         )
-        try mock.startMonitoring { _ in }
+        try mock.startMonitoring(
+            accelerometerHandler: { _ in },
+            deviceMotionHandler: { _ in }
+        )
         #expect(stub.monitoringStarted)
     }
 
-    @Test func sendSamplesDeliversToHandler() throws {
+    @Test func sendAccelSamplesDeliversToHandler() throws {
         let stub = StubMotionProvider()
         let mock = MockMotionProvider(
             realProviderFactory: { stub },
             timeoutInterval: 60
         )
         let received = Collector<AccelerometerSample>()
-        try mock.startMonitoring { samples in
-            received.replace(with: samples)
-        }
-        mock.sendSamples([
+        try mock.startMonitoring(
+            accelerometerHandler: { samples in
+                received.replace(with: samples)
+            },
+            deviceMotionHandler: { _ in }
+        )
+        mock.sendAccelSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: -0.2, z: 0.98),
+        ])
+        #expect(received.items.count == 1)
+    }
+
+    @Test func sendDMSamplesDeliversToHandler() throws {
+        let stub = StubMotionProvider()
+        let mock = MockMotionProvider(
+            realProviderFactory: { stub },
+            timeoutInterval: 60
+        )
+        let received = Collector<DeviceMotionSample>()
+        try mock.startMonitoring(
+            accelerometerHandler: { _ in },
+            deviceMotionHandler: { samples in
+                received.replace(with: samples)
+            }
+        )
+        mock.sendDMSamples([
+            DeviceMotionSample(
+                timestamp: Date(), roll: 0.1, pitch: 0.2, yaw: 0.3,
+                rotationRateX: 1.0, rotationRateY: 2.0, rotationRateZ: 3.0,
+                userAccelerationX: 0.01, userAccelerationY: 0.02, userAccelerationZ: 0.03,
+                heading: 90.0
+            ),
         ])
         #expect(received.items.count == 1)
     }
@@ -271,7 +301,10 @@ struct MockMotionProviderTests {
             realProviderFactory: { stub },
             timeoutInterval: 60
         )
-        try mock.startMonitoring { _ in }
+        try mock.startMonitoring(
+            accelerometerHandler: { _ in },
+            deviceMotionHandler: { _ in }
+        )
         mock.stopMonitoring()
         #expect(stub.monitoringStopped)
     }
@@ -296,9 +329,12 @@ struct MockMotionProviderTests {
         mock.onFallbackActivated = { callbackFired.value = true }
 
         let received = Collector<AccelerometerSample>()
-        try mock.startMonitoring { samples in
-            received.append(contentsOf: samples)
-        }
+        try mock.startMonitoring(
+            accelerometerHandler: { samples in
+                received.append(contentsOf: samples)
+            },
+            deviceMotionHandler: { _ in }
+        )
 
         try await Task.sleep(for: .milliseconds(1500))
 
@@ -315,18 +351,25 @@ struct MockMotionProviderTests {
         let callbackFired = Flag()
         mock.onFallbackActivated = { callbackFired.value = true }
 
-        let received = Collector<AccelerometerSample>()
-        try mock.startMonitoring { samples in
-            received.append(contentsOf: samples)
-        }
+        let accelReceived = Collector<AccelerometerSample>()
+        let dmReceived = Collector<DeviceMotionSample>()
+        try mock.startMonitoring(
+            accelerometerHandler: { samples in
+                accelReceived.append(contentsOf: samples)
+            },
+            deviceMotionHandler: { samples in
+                dmReceived.append(contentsOf: samples)
+            }
+        )
 
         try await Task.sleep(for: .milliseconds(1500))
 
         #expect(callbackFired.value)
-        #expect(!received.items.isEmpty)
+        #expect(!accelReceived.items.isEmpty)
+        #expect(!dmReceived.items.isEmpty)
     }
 
-    @Test func fallbackSuppressedWhenRealSamplesReceived() async throws {
+    @Test func fallbackSuppressedWhenRealAccelSamplesReceived() async throws {
         let stub = StubMotionProvider()
         let mock = MockMotionProvider(
             realProviderFactory: { stub },
@@ -335,10 +378,41 @@ struct MockMotionProviderTests {
         let callbackFired = Flag()
         mock.onFallbackActivated = { callbackFired.value = true }
 
-        try mock.startMonitoring { _ in }
+        try mock.startMonitoring(
+            accelerometerHandler: { _ in },
+            deviceMotionHandler: { _ in }
+        )
 
-        stub.sendSamples([
+        stub.sendAccelSamples([
             AccelerometerSample(timestamp: Date(), x: 0.1, y: 0.0, z: 1.0),
+        ])
+
+        try await Task.sleep(for: .milliseconds(500))
+
+        #expect(!callbackFired.value)
+    }
+
+    @Test func fallbackSuppressedWhenRealDMSamplesReceived() async throws {
+        let stub = StubMotionProvider()
+        let mock = MockMotionProvider(
+            realProviderFactory: { stub },
+            timeoutInterval: 0.2
+        )
+        let callbackFired = Flag()
+        mock.onFallbackActivated = { callbackFired.value = true }
+
+        try mock.startMonitoring(
+            accelerometerHandler: { _ in },
+            deviceMotionHandler: { _ in }
+        )
+
+        stub.sendDMSamples([
+            DeviceMotionSample(
+                timestamp: Date(), roll: 0.1, pitch: 0.2, yaw: 0.3,
+                rotationRateX: 1.0, rotationRateY: 2.0, rotationRateZ: 3.0,
+                userAccelerationX: 0.01, userAccelerationY: 0.02, userAccelerationZ: 0.03,
+                heading: 90.0
+            ),
         ])
 
         try await Task.sleep(for: .milliseconds(500))
@@ -353,15 +427,25 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.1
         )
 
-        let batches = Collector<[AccelerometerSample]>()
-        try mock.startMonitoring { samples in
-            batches.append(samples)
-        }
+        let accelBatches = Collector<[AccelerometerSample]>()
+        let dmBatches = Collector<[DeviceMotionSample]>()
+        try mock.startMonitoring(
+            accelerometerHandler: { samples in
+                accelBatches.append(samples)
+            },
+            deviceMotionHandler: { samples in
+                dmBatches.append(samples)
+            }
+        )
 
         try await Task.sleep(for: .milliseconds(1500))
 
-        #expect(!batches.items.isEmpty)
-        if let first = batches.items.first {
+        #expect(!accelBatches.items.isEmpty)
+        if let first = accelBatches.items.first {
+            #expect(first.count == 100)
+        }
+        #expect(!dmBatches.items.isEmpty)
+        if let first = dmBatches.items.first {
             #expect(first.count == 100)
         }
     }

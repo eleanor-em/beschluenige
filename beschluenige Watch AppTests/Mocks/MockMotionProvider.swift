@@ -6,7 +6,8 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
     private var realProvider: (any MotionProvider)?
     private let realProviderFactory: @Sendable () -> any MotionProvider
     private let timeoutInterval: TimeInterval
-    private var sampleHandler: (@Sendable ([AccelerometerSample]) -> Void)?
+    private var accelHandler: (@Sendable ([AccelerometerSample]) -> Void)?
+    private var dmHandler: (@Sendable ([DeviceMotionSample]) -> Void)?
     private var fallbackTimer: Timer?
     private var timeoutTimer: Timer?
     private var receivedRealSample = false
@@ -25,23 +26,32 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
     }
 
     func startMonitoring(
-        handler: @escaping @Sendable ([AccelerometerSample]) -> Void
+        accelerometerHandler: @escaping @Sendable ([AccelerometerSample]) -> Void,
+        deviceMotionHandler: @escaping @Sendable ([DeviceMotionSample]) -> Void
     ) throws {
-        sampleHandler = handler
+        accelHandler = accelerometerHandler
+        dmHandler = deviceMotionHandler
         receivedRealSample = false
 
         let provider = realProviderFactory()
         realProvider = provider
 
         do {
-            try provider.startMonitoring { [weak self] samples in
-                guard let self else { return }
-                receivedRealSample = true
-                handler(samples)
-            }
+            try provider.startMonitoring(
+                accelerometerHandler: { [weak self] samples in
+                    guard let self else { return }
+                    receivedRealSample = true
+                    accelerometerHandler(samples)
+                },
+                deviceMotionHandler: { [weak self] samples in
+                    guard let self else { return }
+                    receivedRealSample = true
+                    deviceMotionHandler(samples)
+                }
+            )
         } catch {
             logger.warning(
-                "Real accelerometer failed: \(error.localizedDescription) -- will use fallback"
+                "Real motion provider failed: \(error.localizedDescription) -- will use fallback"
             )
         }
 
@@ -58,7 +68,8 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
         fallbackTimer?.invalidate()
         fallbackTimer = nil
         realProvider?.stopMonitoring()
-        sampleHandler = nil
+        accelHandler = nil
+        dmHandler = nil
     }
 
     private func startFallback() {
@@ -67,37 +78,63 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
         #if !targetEnvironment(simulator)
         if !isRunningTests {
             assertionFailure(
-                "No accelerometer samples received after 15s on a real device")
+                "No motion samples received after 15s on a real device")
         }
         #endif
 
         logger.warning(
-            "No accelerometer samples received after 15s -- falling back to simulated data"
+            "No motion samples received after 15s -- falling back to simulated data"
         )
         onFallbackActivated?()
 
-        // Generate batches of 100 samples (1 second at 100 Hz) every second
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, let handler = sampleHandler else { return }
+            guard let self else { return }
             let now = Date()
-            var samples: [AccelerometerSample] = []
-            for i in 0..<100 {
-                let t = now.addingTimeInterval(Double(i) * 0.01)
-                samples.append(
-                    AccelerometerSample(
-                        timestamp: t,
-                        x: Double.random(in: -2...2),
-                        y: Double.random(in: -2...2),
-                        z: Double.random(in: -1...1) + 1.0
-                    ))
+            if let accelHandler {
+                accelHandler(Self.generateAccelBatch(at: now))
             }
-            handler(samples)
+            if let dmHandler {
+                dmHandler(Self.generateDMBatch(at: now))
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         fallbackTimer = timer
     }
 
-    func sendSamples(_ samples: [AccelerometerSample]) {
-        sampleHandler?(samples)
+    private static func generateAccelBatch(at now: Date) -> [AccelerometerSample] {
+        (0..<100).map { i in
+            AccelerometerSample(
+                timestamp: now.addingTimeInterval(Double(i) * 0.01),
+                x: Double.random(in: -2...2),
+                y: Double.random(in: -2...2),
+                z: Double.random(in: -1...1) + 1.0
+            )
+        }
+    }
+
+    private static func generateDMBatch(at now: Date) -> [DeviceMotionSample] {
+        (0..<100).map { i in
+            DeviceMotionSample(
+                timestamp: now.addingTimeInterval(Double(i) * 0.01),
+                roll: Double.random(in: -.pi...(.pi)),
+                pitch: Double.random(in: -.pi / 2...(.pi / 2)),
+                yaw: Double.random(in: -.pi...(.pi)),
+                rotationRateX: Double.random(in: -5...5),
+                rotationRateY: Double.random(in: -5...5),
+                rotationRateZ: Double.random(in: -5...5),
+                userAccelerationX: Double.random(in: -2...2),
+                userAccelerationY: Double.random(in: -2...2),
+                userAccelerationZ: Double.random(in: -2...2),
+                heading: Double.random(in: 0...360)
+            )
+        }
+    }
+
+    func sendAccelSamples(_ samples: [AccelerometerSample]) {
+        accelHandler?(samples)
+    }
+
+    func sendDMSamples(_ samples: [DeviceMotionSample]) {
+        dmHandler?(samples)
     }
 }

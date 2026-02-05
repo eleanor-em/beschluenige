@@ -73,7 +73,7 @@ Key files:
 
 ### Accelerometer
 
-Collected using `CMMotionManager` at 100 Hz (`accelerometerUpdateInterval = 0.01`). Samples are batched (100 per flush) before dispatch to reduce overhead. Core Motion timestamps are boot-relative; they are converted to wall clock time using a delta computed at start.
+Collected using `CMBatchedSensorManager` at 800 Hz accelerometer / 200 Hz device motion. Batches are delivered once per second by the system via `AsyncSequence` (no manual batching). Requires Apple Watch Series 8+ / Ultra (hardware requirement, no fallback). Core Motion timestamps are boot-relative; they are converted to wall clock time using a delta computed at start.
 
 Key files:
 - `MotionProvider.swift` -- protocol

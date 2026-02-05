@@ -10,6 +10,7 @@ final class WorkoutManager {
     var heartRateSampleCount: Int = 0
     var locationSampleCount: Int = 0
     var accelerometerSampleCount: Int = 0
+    var deviceMotionSampleCount: Int = 0
 
     private let provider: any HeartRateProvider
     private let locationProvider: any LocationProvider
@@ -41,6 +42,7 @@ final class WorkoutManager {
         heartRateSampleCount = 0
         locationSampleCount = 0
         accelerometerSampleCount = 0
+        deviceMotionSampleCount = 0
 
         try await provider.startMonitoring { [weak self] samples in
             Task { @MainActor [weak self] in
@@ -54,11 +56,18 @@ final class WorkoutManager {
             }
         }
 
-        try motionProvider.startMonitoring { [weak self] samples in
-            Task { @MainActor [weak self] in
-                self?.processAccelerometerSamples(samples)
+        try motionProvider.startMonitoring(
+            accelerometerHandler: { [weak self] samples in
+                Task { @MainActor [weak self] in
+                    self?.processAccelerometerSamples(samples)
+                }
+            },
+            deviceMotionHandler: { [weak self] samples in
+                Task { @MainActor [weak self] in
+                    self?.processDeviceMotionSamples(samples)
+                }
             }
-        }
+        )
 
         isRecording = true
     }
@@ -103,5 +112,15 @@ final class WorkoutManager {
         assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
         currentSession!.accelerometerSamples.append(contentsOf: samples)
         accelerometerSampleCount = currentSession!.accelerometerSamples.count
+    }
+
+    private func processDeviceMotionSamples(_ samples: [DeviceMotionSample]) {
+        guard isRecording else {
+            logger.error("processDeviceMotionSamples(): not currently recording")
+            return
+        }
+        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
+        currentSession!.deviceMotionSamples.append(contentsOf: samples)
+        deviceMotionSampleCount = currentSession!.deviceMotionSamples.count
     }
 }

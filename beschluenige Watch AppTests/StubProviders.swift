@@ -67,24 +67,32 @@ final class StubMotionProvider: MotionProvider, @unchecked Sendable {
     var shouldThrow = false
     var monitoringStarted = false
     var monitoringStopped = false
-    private var handler: (@Sendable ([AccelerometerSample]) -> Void)?
+    private var accelHandler: (@Sendable ([AccelerometerSample]) -> Void)?
+    private var dmHandler: (@Sendable ([DeviceMotionSample]) -> Void)?
 
     func startMonitoring(
-        handler: @escaping @Sendable ([AccelerometerSample]) -> Void
+        accelerometerHandler: @escaping @Sendable ([AccelerometerSample]) -> Void,
+        deviceMotionHandler: @escaping @Sendable ([DeviceMotionSample]) -> Void
     ) throws {
         if shouldThrow {
             throw MotionError.accelerometerUnavailable
         }
-        self.handler = handler
+        self.accelHandler = accelerometerHandler
+        self.dmHandler = deviceMotionHandler
         monitoringStarted = true
     }
 
     func stopMonitoring() {
         monitoringStopped = true
-        handler = nil
+        accelHandler = nil
+        dmHandler = nil
     }
 
-    func sendSamples(_ samples: [AccelerometerSample]) {
-        handler?(samples)
+    func sendAccelSamples(_ samples: [AccelerometerSample]) {
+        accelHandler?(samples)
+    }
+
+    func sendDMSamples(_ samples: [DeviceMotionSample]) {
+        dmHandler?(samples)
     }
 }

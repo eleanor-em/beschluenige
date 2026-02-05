@@ -34,6 +34,7 @@ struct RecordingView: View {
                     "\(workoutManager.heartRateSampleCount) HR"
                         + " / \(workoutManager.locationSampleCount) GPS"
                         + " / \(workoutManager.accelerometerSampleCount) accel"
+                        + " / \(workoutManager.deviceMotionSampleCount) motion"
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)
