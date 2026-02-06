@@ -2,11 +2,22 @@ import Foundation
 
 struct RecordingSession: Sendable {
     let startDate: Date
+    let sessionId: String
     var endDate: Date?
     var heartRateSamples: [HeartRateSample] = []
     var locationSamples: [LocationSample] = []
     var accelerometerSamples: [AccelerometerSample] = []
     var deviceMotionSamples: [DeviceMotionSample] = []
+    var nextChunkIndex: Int = 0
+    var chunkURLs: [URL] = []
+    var cumulativeSampleCount: Int = 0
+
+    init(startDate: Date) {
+        self.startDate = startDate
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        self.sessionId = formatter.string(from: startDate)
+    }
 
     var sampleCount: Int { heartRateSamples.count }
     var totalSampleCount: Int {
@@ -77,17 +88,31 @@ struct RecordingSession: Sendable {
         return Data(csv.utf8)
     }
 
-    func saveLocally() throws -> URL {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+    mutating func flushChunk() throws -> URL? {
+        guard totalSampleCount > 0 else { return nil }
+
+        let data = csvData()
         let prefix = isRunningTests ? "TEST_" : ""
-        let fileName = "\(prefix)hr_\(formatter.string(from: startDate)).csv"
+        let fileName = "\(prefix)session_\(sessionId)_\(nextChunkIndex).csv"
 
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
         let fileURL = documentsDir.appendingPathComponent(fileName)
-        try csvData().write(to: fileURL)
+        try data.write(to: fileURL)
+
+        heartRateSamples.removeAll(keepingCapacity: false)
+        locationSamples.removeAll(keepingCapacity: false)
+        accelerometerSamples.removeAll(keepingCapacity: false)
+        deviceMotionSamples.removeAll(keepingCapacity: false)
+
+        chunkURLs.append(fileURL)
+        nextChunkIndex += 1
         return fileURL
+    }
+
+    mutating func finalizeChunks() throws -> [URL] {
+        _ = try flushChunk()
+        return chunkURLs
     }
 }

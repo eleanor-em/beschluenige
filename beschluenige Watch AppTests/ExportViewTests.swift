@@ -5,14 +5,17 @@ import Testing
 @MainActor
 struct ExportViewTests {
 
-    private func makeManager(withSession: Bool = true) -> WorkoutManager {
+    private func makeManager(
+        withSession: Bool = true,
+        startDate: Date = Date()
+    ) -> WorkoutManager {
         let manager = WorkoutManager(
             provider: StubHeartRateProvider(),
             locationProvider: StubLocationProvider(),
             motionProvider: StubMotionProvider()
         )
         if withSession {
-            manager.currentSession = RecordingSession(startDate: Date())
+            manager.currentSession = RecordingSession(startDate: startDate)
         }
         return manager
     }
@@ -46,10 +49,10 @@ struct ExportViewTests {
     }
 
     @Test func bodyRendersSavedLocally() {
-        let url = URL(fileURLWithPath: "/tmp/test.csv")
+        let urls = [URL(fileURLWithPath: "/tmp/test.csv")]
         let view = ExportView(
             workoutManager: makeManager(),
-            initialTransferState: .savedLocally(url)
+            initialTransferState: .savedLocally(urls)
         )
         _ = view.body
     }
@@ -66,34 +69,59 @@ struct ExportViewTests {
 
     @Test func sendToPhoneSetsSentOnSuccess() {
         var action = ExportAction()
-        action.sendViaPhone = { _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.finalizeSession = { session in
+            session.heartRateSamples = [
+                HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+            ]
+            return try session.finalizeChunks()
+        }
 
+        let manager = makeManager(startDate: Date(timeIntervalSince1970: 3000000000))
         let view = ExportView(
-            workoutManager: makeManager(),
+            workoutManager: manager,
             exportAction: action
         )
 
-        let session = RecordingSession(startDate: Date())
-        view.sendToPhone(session: session)
+        view.sendToPhone()
+
+        // Clean up chunk files
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
-    @Test func sendToPhoneSetsLocalFallback() throws {
+    @Test func sendToPhoneSetsLocalFallback() {
         var action = ExportAction()
-        action.sendViaPhone = { _ in false }
+        action.sendChunksViaPhone = { _, _, _, _ in false }
+        action.finalizeSession = { session in
+            session.heartRateSamples = [
+                HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+            ]
+            return try session.finalizeChunks()
+        }
 
+        let manager = makeManager(startDate: Date(timeIntervalSince1970: 3000000001))
         let view = ExportView(
-            workoutManager: makeManager(),
+            workoutManager: manager,
             exportAction: action
         )
 
-        let session = RecordingSession(startDate: Date())
-        view.sendToPhone(session: session)
+        view.sendToPhone()
+
+        // Clean up chunk files
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     @Test func sendToPhoneSetsFailed() {
         var action = ExportAction()
-        action.sendViaPhone = { _ in false }
-        action.saveLocally = { _ in
+        action.finalizeSession = { _ in
             throw NSError(domain: "test", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "disk full",
             ])
@@ -104,21 +132,34 @@ struct ExportViewTests {
             exportAction: action
         )
 
-        let session = RecordingSession(startDate: Date())
-        view.sendToPhone(session: session)
+        view.sendToPhone()
     }
 
     // MARK: - handleSendToPhone
 
     @Test func handleSendToPhoneWithSession() {
         var action = ExportAction()
-        action.sendViaPhone = { _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.finalizeSession = { session in
+            session.heartRateSamples = [
+                HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+            ]
+            return try session.finalizeChunks()
+        }
 
+        let manager = makeManager(startDate: Date(timeIntervalSince1970: 3000000002))
         let view = ExportView(
-            workoutManager: makeManager(),
+            workoutManager: manager,
             exportAction: action
         )
         view.handleSendToPhone()
+
+        // Clean up chunk files
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     @Test func handleSendToPhoneWithoutSession() {

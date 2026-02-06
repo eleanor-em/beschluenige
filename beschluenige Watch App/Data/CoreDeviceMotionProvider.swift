@@ -2,7 +2,7 @@ import CoreMotion
 import Foundation
 import os
 
-final class CoreMotionProvider: MotionProvider, @unchecked Sendable {
+final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable {
     private let manager = CMBatchedSensorManager()
     private var accelTask: Task<Void, Never>?
     private var dmTask: Task<Void, Never>?

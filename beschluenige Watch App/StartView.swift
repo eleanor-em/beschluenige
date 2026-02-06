@@ -3,6 +3,7 @@ import os
 
 struct StartView: View {
     var workoutManager: WorkoutManager
+    var sessionStore: SessionStore
     @Binding var showExport: Bool
     @State private var errorMessage: String?
 
@@ -13,10 +14,12 @@ struct StartView: View {
 
     init(
         workoutManager: WorkoutManager,
+        sessionStore: SessionStore = SessionStore(),
         showExport: Binding<Bool>,
         initialErrorMessage: String? = nil
     ) {
         self.workoutManager = workoutManager
+        self.sessionStore = sessionStore
         self._showExport = showExport
         self._errorMessage = State(initialValue: initialErrorMessage)
     }
@@ -34,6 +37,10 @@ struct StartView: View {
                 Button("Export Data") {
                     showExport = true
                 }
+            }
+
+            NavigationLink("Sessions") {
+                SessionListView(sessionStore: sessionStore)
             }
 
             if let errorMessage {

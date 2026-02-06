@@ -94,7 +94,7 @@ struct CoreMotionProviderTests {
     // MARK: - Availability
 
     @Test func startMonitoringThrowsWhenAccelerometerUnavailable() {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(false)
         provider.setDeviceMotionAvailableOverride(true)
         #expect(throws: MotionError.accelerometerUnavailable) {
@@ -106,7 +106,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func startMonitoringThrowsWhenDeviceMotionUnavailable() {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(true)
         provider.setDeviceMotionAvailableOverride(false)
         #expect(throws: MotionError.deviceMotionUnavailable) {
@@ -118,7 +118,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func startMonitoringWithoutOverrideUsesRealAvailability() throws {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         if CMBatchedSensorManager.isAccelerometerSupported
             && CMBatchedSensorManager.isDeviceMotionSupported {
             try provider.startMonitoring(
@@ -144,7 +144,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func startMonitoringFallsBackToRealDeviceMotionAvailability() throws {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(true)
         // deviceMotionAvailableOverride is nil, so it falls through to
         // CMBatchedSensorManager.isDeviceMotionSupported
@@ -165,7 +165,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func startMonitoringWithDefaultFactoryUsesBuiltInStream() async throws {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(true)
         provider.setDeviceMotionAvailableOverride(true)
         // Do not set stream factories -- exercises the default (simulator: empty stream)
@@ -174,12 +174,12 @@ struct CoreMotionProviderTests {
             deviceMotionHandler: { _ in }
         )
         // Give detached tasks time to consume the empty streams
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
         provider.stopMonitoring()
     }
 
     @Test func stopMonitoringWhenNotStartedIsHarmless() {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.stopMonitoring()
     }
 
@@ -193,7 +193,7 @@ struct CoreMotionProviderTests {
             acceleration: CMAcceleration(x: 0.1, y: 0.2, z: 0.3)
         )
 
-        let result = CoreMotionProvider.convertAccelerometerBatch([data], delta: delta)
+        let result = CoreDeviceMotionProvider.convertAccelerometerBatch([data], delta: delta)
 
         #expect(result.count == 1)
         let expected = Date(timeIntervalSinceReferenceDate: bootTimestamp + delta)
@@ -220,7 +220,7 @@ struct CoreMotionProviderTests {
             ),
         ]
 
-        let result = CoreMotionProvider.convertAccelerometerBatch(batch, delta: delta)
+        let result = CoreDeviceMotionProvider.convertAccelerometerBatch(batch, delta: delta)
 
         #expect(result.count == 3)
         #expect(result[0].x == 1.0)
@@ -230,7 +230,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func convertAccelerometerBatchEmpty() {
-        let result = CoreMotionProvider.convertAccelerometerBatch([], delta: 0)
+        let result = CoreDeviceMotionProvider.convertAccelerometerBatch([], delta: 0)
         #expect(result.isEmpty)
     }
 
@@ -241,7 +241,7 @@ struct CoreMotionProviderTests {
         let bootTimestamp: TimeInterval = 50.0
         let motion = makeFakeDeviceMotion(timestamp: bootTimestamp)
 
-        let result = CoreMotionProvider.convertDeviceMotionBatch([motion], delta: delta)
+        let result = CoreDeviceMotionProvider.convertDeviceMotionBatch([motion], delta: delta)
 
         #expect(result.count == 1)
         let s = result[0]
@@ -267,7 +267,7 @@ struct CoreMotionProviderTests {
             makeFakeDeviceMotion(timestamp: 10.01),
         ]
 
-        let result = CoreMotionProvider.convertDeviceMotionBatch(batch, delta: delta)
+        let result = CoreDeviceMotionProvider.convertDeviceMotionBatch(batch, delta: delta)
 
         #expect(result.count == 3)
         #expect(result[0].roll == 0.1)
@@ -276,14 +276,14 @@ struct CoreMotionProviderTests {
     }
 
     @Test func convertDeviceMotionBatchEmpty() {
-        let result = CoreMotionProvider.convertDeviceMotionBatch([], delta: 0)
+        let result = CoreDeviceMotionProvider.convertDeviceMotionBatch([], delta: 0)
         #expect(result.isEmpty)
     }
 
     // MARK: - Stream integration via factories
 
     @Test func startMonitoringDeliversAccelSamplesFromStream() async throws {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(true)
         provider.setDeviceMotionAvailableOverride(true)
 
@@ -326,7 +326,7 @@ struct CoreMotionProviderTests {
     }
 
     @Test func startMonitoringDeliversDMSamplesFromStream() async throws {
-        let provider = CoreMotionProvider()
+        let provider = CoreDeviceMotionProvider()
         provider.setAccelerometerAvailableOverride(true)
         provider.setDeviceMotionAvailableOverride(true)
 
@@ -369,7 +369,7 @@ struct CoreMotionProviderTests {
             cont.finish(throwing: NSError(domain: "TestDomain", code: 42))
         }
 
-        await CoreMotionProvider.iterateAccelStream(
+        await CoreDeviceMotionProvider.iterateAccelStream(
             stream, delta: 0, handler: { _ in })
     }
 
@@ -378,7 +378,7 @@ struct CoreMotionProviderTests {
             cont.finish(throwing: NSError(domain: "TestDomain", code: 42))
         }
 
-        await CoreMotionProvider.iterateDMStream(
+        await CoreDeviceMotionProvider.iterateDMStream(
             stream, delta: 0, handler: { _ in })
     }
 
@@ -401,7 +401,7 @@ struct CoreMotionProviderTests {
             cont.finish()
         }
 
-        await CoreMotionProvider.iterateAccelStream(
+        await CoreDeviceMotionProvider.iterateAccelStream(
             stream, delta: 100.0, handler: { samples in allSamples.append(samples) })
 
         #expect(allSamples.count == 2)
@@ -418,7 +418,7 @@ struct CoreMotionProviderTests {
             cont.finish()
         }
 
-        await CoreMotionProvider.iterateDMStream(
+        await CoreDeviceMotionProvider.iterateDMStream(
             stream, delta: 100.0, handler: { samples in allSamples.append(samples) })
 
         #expect(allSamples.count == 2)

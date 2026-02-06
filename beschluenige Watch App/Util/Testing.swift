@@ -58,7 +58,7 @@ final class UITestLocationProvider: LocationProvider, @unchecked Sendable {
     }
 }
 
-final class UITestMotionProvider: MotionProvider, @unchecked Sendable {
+final class UITestMotionProvider: DeviceMotionProvider, @unchecked Sendable {
     private var timer: Timer?
 
     func startMonitoring(

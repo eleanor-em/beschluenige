@@ -96,7 +96,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.stopMonitoring()
 
@@ -147,7 +147,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.workoutSession(
             session,
@@ -173,7 +173,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.workoutSession(
             session,
@@ -204,7 +204,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.workoutSession(
             session,
@@ -239,7 +239,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.workoutSession(session, didFailWithError: injectedError)
 
@@ -345,7 +345,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         // The continuation should be stored. Resolve it by simulating .running delegate call.
         let config = HKWorkoutConfiguration()
@@ -372,7 +372,7 @@ struct HealthKitHeartRateProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         // Resolve by simulating .running
         let config = HKWorkoutConfiguration()

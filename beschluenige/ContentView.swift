@@ -5,7 +5,7 @@ import os
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
     @State private var healthAuthDenied = false
-    @State private var fileToDelete: WatchConnectivityManager.ReceivedFile?
+    @State private var sessionToDelete: WatchConnectivityManager.SessionRecord?
 
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige",
@@ -36,7 +36,7 @@ struct ContentView: View {
                     }
                 }
 
-                if connectivityManager.receivedFiles.isEmpty {
+                if connectivityManager.sessions.isEmpty {
                     ContentUnavailableView(
                         "No Recordings",
                         systemImage: "heart.slash",
@@ -45,37 +45,8 @@ struct ContentView: View {
                         )
                     )
                 } else {
-                    ForEach(connectivityManager.receivedFiles) { file in
-                        VStack(alignment: .leading) {
-                            Text(file.fileName)
-                                .font(.headline)
-                            Text(
-                                "\(file.sampleCount) samples - \(file.startDate, style: .date)"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        }
-                        .contextMenu {
-                            ShareLink(item: file.fileURL)
-                            Button(role: .destructive) {
-                                fileToDelete = file
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                        }
-                        .listRowBackground(
-                            fileToDelete?.id == file.id
-                                ? Color.red.opacity(0.2)
-                                : nil
-                        )
-                        .swipeActions(edge: .trailing) {
-                            Button {
-                                fileToDelete = file
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .tint(.red)
-                        }
+                    ForEach(connectivityManager.sessions) { record in
+                        sessionRow(record)
                     }
                 }
             }
@@ -83,27 +54,75 @@ struct ContentView: View {
             .alert(
                 "Delete Recording",
                 isPresented: Binding(
-                    get: { fileToDelete != nil },
-                    set: { if !$0 { fileToDelete = nil } }
+                    get: { sessionToDelete != nil },
+                    set: { if !$0 { sessionToDelete = nil } }
                 )
             ) {
                 Button("Delete", role: .destructive) {
-                    if let file = fileToDelete {
-                        connectivityManager.deleteFile(file)
-                        fileToDelete = nil
+                    if let record = sessionToDelete {
+                        connectivityManager.deleteSession(record)
+                        sessionToDelete = nil
                     }
                 }
                 Button("Cancel", role: .cancel) {
-                    fileToDelete = nil
+                    sessionToDelete = nil
                 }
             } message: {
-                if let file = fileToDelete {
-                    Text("Are you sure you want to delete \"\(file.fileName)\"? This cannot be undone.")
+                if let record = sessionToDelete {
+                    Text(
+                        "Are you sure you want to delete"
+                            + " \"\(record.displayName)\"? This cannot be undone."
+                    )
                 }
             }
         }
         .task {
             await requestHealthKitAuthorization()
+        }
+    }
+
+    @ViewBuilder
+    private func sessionRow(
+        _ record: WatchConnectivityManager.SessionRecord
+    ) -> some View {
+        VStack(alignment: .leading) {
+            Text(record.displayName)
+                .font(.headline)
+            if record.isComplete {
+                let label = "\(record.totalSampleCount) samples"
+                (Text(label + " - ") + Text(record.startDate, style: .date))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                let chunkLabel =
+                    "Receiving \(record.receivedChunks.count)/\(record.totalChunks) chunks"
+                Text(chunkLabel)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        .contextMenu {
+            if let mergedURL = record.mergedFileURL {
+                ShareLink(item: mergedURL)
+            }
+            Button(role: .destructive) {
+                sessionToDelete = record
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .listRowBackground(
+            sessionToDelete?.id == record.id
+                ? Color.red.opacity(0.2)
+                : nil
+        )
+        .swipeActions(edge: .trailing) {
+            Button {
+                sessionToDelete = record
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .tint(.red)
         }
     }
 

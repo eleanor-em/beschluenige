@@ -3,6 +3,7 @@ import os
 
 struct ContentView: View {
     @State private var workoutManager: WorkoutManager
+    @State private var sessionStore: SessionStore
     @State private var showExport = false
 
     private let logger = Logger(
@@ -21,13 +22,24 @@ struct ContentView: View {
             _workoutManager = State(initialValue: WorkoutManager(
                 provider: HealthKitHeartRateProvider(),
                 locationProvider: CoreLocationProvider(),
-                motionProvider: CoreMotionProvider()
+                motionProvider: CoreDeviceMotionProvider()
             ))
         }
+        let store = SessionStore()
+        if CommandLine.arguments.contains("--ui-testing") {
+            store.registerSession(
+                sessionId: "ui-test",
+                startDate: Date(),
+                chunkURLs: [],
+                totalSampleCount: 42
+            )
+        }
+        _sessionStore = State(initialValue: store)
     }
 
-    init(workoutManager: WorkoutManager) {
+    init(workoutManager: WorkoutManager, sessionStore: SessionStore = SessionStore()) {
         _workoutManager = State(initialValue: workoutManager)
+        _sessionStore = State(initialValue: sessionStore)
     }
 
     var body: some View {
@@ -35,11 +47,15 @@ struct ContentView: View {
             if workoutManager.isRecording {
                 RecordingView(workoutManager: workoutManager)
             } else {
-                StartView(workoutManager: workoutManager, showExport: $showExport)
+                StartView(
+                    workoutManager: workoutManager,
+                    sessionStore: sessionStore,
+                    showExport: $showExport
+                )
             }
         }
         .sheet(isPresented: $showExport) {
-            ExportView(workoutManager: workoutManager)
+            ExportView(workoutManager: workoutManager, sessionStore: sessionStore)
         }
         .task {
             await authorizeProviders()

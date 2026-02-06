@@ -197,21 +197,98 @@ struct RecordingSessionTests {
         #expect(session.endDate == end)
     }
 
-    @Test func saveLocallyWritesCsvFile() throws {
-        let t = Date(timeIntervalSince1970: 1706812345.678)
+    @Test func sessionIdDerivedFromStartDate() {
+        let t = Date(timeIntervalSince1970: 1706812345)
+        let session = RecordingSession(startDate: t)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
+        #expect(session.sessionId == formatter.string(from: t))
+    }
+
+    @Test func flushChunkWritesCsvAndClearsArrays() throws {
+        let t = Date(timeIntervalSince1970: 1706812345)
         var session = RecordingSession(startDate: t)
         session.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 100),
         ]
+        session.accelerometerSamples = [
+            AccelerometerSample(timestamp: t, x: 0.1, y: 0.2, z: 0.3),
+        ]
 
-        let url = try session.saveLocally()
+        let url = try session.flushChunk()
 
-        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(url != nil)
+        #expect(session.heartRateSamples.isEmpty)
+        #expect(session.accelerometerSamples.isEmpty)
+        #expect(session.locationSamples.isEmpty)
+        #expect(session.deviceMotionSamples.isEmpty)
+        #expect(session.nextChunkIndex == 1)
+        #expect(session.chunkURLs.count == 1)
+
+        let content = try String(contentsOf: url!, encoding: .utf8)
         #expect(content.contains("H,"))
-        #expect(url.lastPathComponent.hasPrefix("TEST_hr_"))
-        #expect(url.lastPathComponent.hasSuffix(".csv"))
+        #expect(content.contains("A,"))
+        #expect(url!.lastPathComponent.contains("_0.csv"))
 
-        try FileManager.default.removeItem(at: url)
+        try FileManager.default.removeItem(at: url!)
+    }
+
+    @Test func flushChunkReturnsNilWhenEmpty() throws {
+        var session = RecordingSession(startDate: Date())
+
+        let url = try session.flushChunk()
+
+        #expect(url == nil)
+        #expect(session.nextChunkIndex == 0)
+        #expect(session.chunkURLs.isEmpty)
+    }
+
+    @Test func flushChunkIncrementsIndex() throws {
+        let t = Date(timeIntervalSince1970: 1706899999)
+        var session = RecordingSession(startDate: t)
+
+        session.heartRateSamples = [
+            HeartRateSample(timestamp: t, beatsPerMinute: 80),
+        ]
+        let url0 = try session.flushChunk()
+
+        session.heartRateSamples = [
+            HeartRateSample(timestamp: t, beatsPerMinute: 90),
+        ]
+        let url1 = try session.flushChunk()
+
+        #expect(url0!.lastPathComponent.contains("_0.csv"))
+        #expect(url1!.lastPathComponent.contains("_1.csv"))
+        #expect(session.nextChunkIndex == 2)
+        #expect(session.chunkURLs.count == 2)
+
+        try FileManager.default.removeItem(at: url0!)
+        try FileManager.default.removeItem(at: url1!)
+    }
+
+    @Test func finalizeChunksFlushesRemaining() throws {
+        let t = Date(timeIntervalSince1970: 1706800000)
+        var session = RecordingSession(startDate: t)
+
+        // First chunk
+        session.heartRateSamples = [
+            HeartRateSample(timestamp: t, beatsPerMinute: 80),
+        ]
+        _ = try session.flushChunk()
+
+        // Remaining samples
+        session.heartRateSamples = [
+            HeartRateSample(timestamp: t, beatsPerMinute: 90),
+        ]
+
+        let urls = try session.finalizeChunks()
+
+        #expect(urls.count == 2)
+        #expect(session.heartRateSamples.isEmpty)
+
+        for url in urls {
+            try FileManager.default.removeItem(at: url)
+        }
     }
 }
 
@@ -233,6 +310,8 @@ struct WorkoutManagerTests {
         #expect(manager.isRecording)
         #expect(manager.currentSession != nil)
         #expect(manager.currentSession?.sampleCount == 0)
+
+        manager.stopRecording()
     }
 
     @Test func stopRecordingSetsEndDate() async throws {
@@ -270,11 +349,13 @@ struct WorkoutManagerTests {
             HeartRateSample(timestamp: t.addingTimeInterval(1), beatsPerMinute: 130),
         ])
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.currentSession?.sampleCount == 2)
         #expect(manager.currentHeartRate == 130)
         #expect(manager.lastSampleDate == t.addingTimeInterval(1))
+
+        manager.stopRecording()
     }
 
     @Test func locationSamplesFlowThroughProvider() async throws {
@@ -297,10 +378,12 @@ struct WorkoutManagerTests {
             ),
         ])
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.currentSession?.locationSamples.count == 1)
         #expect(manager.locationSampleCount == 1)
+
+        manager.stopRecording()
     }
 
     @Test func accelerometerSamplesFlowThroughProvider() async throws {
@@ -320,10 +403,12 @@ struct WorkoutManagerTests {
             AccelerometerSample(timestamp: Date(), x: 0.2, y: -0.1, z: 0.97),
         ])
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.currentSession?.accelerometerSamples.count == 2)
         #expect(manager.accelerometerSampleCount == 2)
+
+        manager.stopRecording()
     }
 
     @Test func deviceMotionSamplesFlowThroughProvider() async throws {
@@ -340,10 +425,12 @@ struct WorkoutManagerTests {
 
         stubMotion.sendDMSamples([testDMSample, testDMSample])
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.currentSession?.deviceMotionSamples.count == 2)
         #expect(manager.deviceMotionSampleCount == 2)
+
+        manager.stopRecording()
     }
 
     @Test func emptySampleArrayDoesNotUpdateHeartRate() async throws {
@@ -358,10 +445,12 @@ struct WorkoutManagerTests {
 
         try await manager.startRecording()
         stub.sendSamples([])
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.currentHeartRate == 0)
         #expect(manager.lastSampleDate == nil)
+
+        manager.stopRecording()
     }
 
     @Test func stopClearsSampleDelivery() async throws {
@@ -382,8 +471,9 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
+        // After stop, samples are flushed to disk, so in-memory count is 0
         #expect(manager.currentSession?.sampleCount == 0)
     }
 
@@ -409,7 +499,7 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.locationSampleCount == 0)
     }
@@ -432,7 +522,7 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.accelerometerSampleCount == 0)
     }
@@ -453,8 +543,211 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        try await Task.sleep(for: .milliseconds(50))
+        await Task.yield()
 
         #expect(manager.deviceMotionSampleCount == 0)
+    }
+
+    @Test func flushCurrentChunkPreservesCumulativeCounts() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+        manager.flushInterval = 0.1
+
+        try await manager.startRecording()
+
+        // Add first batch
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 120),
+        ])
+        stubLocation.sendSamples([
+            LocationSample(
+                timestamp: Date(), latitude: 43.0, longitude: -79.0,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 3.0, course: 90.0
+            ),
+        ])
+        stubMotion.sendAccelSamples([
+            AccelerometerSample(timestamp: Date(), x: 0.1, y: 0.2, z: 0.3),
+        ])
+        stubMotion.sendDMSamples([testDMSample])
+        await Task.yield()
+
+        // Flush
+        manager.flushCurrentChunk()
+
+        // In-memory arrays should be empty
+        #expect(manager.currentSession?.heartRateSamples.isEmpty == true)
+        #expect(manager.currentSession?.locationSamples.isEmpty == true)
+        #expect(manager.currentSession?.accelerometerSamples.isEmpty == true)
+        #expect(manager.currentSession?.deviceMotionSamples.isEmpty == true)
+
+        // But cumulative counts are preserved
+        #expect(manager.heartRateSampleCount == 1)
+        #expect(manager.locationSampleCount == 1)
+        #expect(manager.accelerometerSampleCount == 1)
+        #expect(manager.deviceMotionSampleCount == 1)
+
+        // Add second batch
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 130),
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 140),
+        ])
+        await Task.yield()
+
+        // Cumulative + new
+        #expect(manager.heartRateSampleCount == 3)
+
+        manager.stopRecording()
+
+        // Clean up chunk files
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    @Test func handleFlushTimerCallsFlush() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+        manager.flushInterval = 0.01
+
+        try await manager.startRecording()
+
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 80),
+        ])
+        await Task.yield()
+
+        // Let the RunLoop fire the timer so the Timer closure is covered
+        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
+        await Task.yield()
+
+        #expect(manager.currentSession?.chunkURLs.count ?? 0 >= 1)
+
+        manager.stopRecording()
+
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    @Test func flushCurrentChunkAfterStopCoversGuard() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+        manager.flushInterval = 0.1
+
+        try await manager.startRecording()
+
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 90),
+        ])
+        await Task.yield()
+
+        manager.stopRecording()
+
+        // isRecording is now false, but currentSession is non-nil.
+        // This covers the right side of the || guard in flushCurrentChunk.
+        manager.flushCurrentChunk()
+
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    @Test func flushCurrentChunkLogsErrorOnWriteFailure() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+        try await manager.startRecording()
+
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 110),
+        ])
+        await Task.yield()
+
+        // Create a directory at the chunk file path to block the write.
+        // Data.write(to:) throws when the target is a directory.
+        let documentsDir = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+        let sessionId = manager.currentSession!.sessionId
+        let chunkIndex = manager.currentSession!.nextChunkIndex
+        let blocker = documentsDir.appendingPathComponent(
+            "TEST_session_\(sessionId)_\(chunkIndex).csv"
+        )
+        // Create a subdirectory inside so the path is a directory, not a file
+        let sub = blocker.appendingPathComponent("x")
+        try FileManager.default.createDirectory(
+            at: sub, withIntermediateDirectories: true
+        )
+
+        manager.flushCurrentChunk()
+
+        // Clean up
+        try? FileManager.default.removeItem(at: blocker)
+        manager.stopRecording()
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
+    @Test func stopRecordingFlushesRemainingChunk() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+        manager.flushInterval = 0.1
+
+        try await manager.startRecording()
+
+        stub.sendSamples([
+            HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+        ])
+        await Task.yield()
+
+        manager.stopRecording()
+
+        #expect(manager.currentSession?.chunkURLs.isEmpty == false)
+
+        // Clean up chunk files
+        if let session = manager.currentSession {
+            for url in session.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
     }
 }

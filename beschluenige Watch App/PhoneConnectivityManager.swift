@@ -27,39 +27,51 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         session.activate()
     }
 
-    func prepareFileForTransfer(
-        _ recordingSession: RecordingSession
-    ) throws -> (URL, [String: Any]) {
-        let csvData = recordingSession.csvData()
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        let prefix = isRunningTests ? "TEST_" : ""
-        let fileName = "\(prefix)hr_\(formatter.string(from: recordingSession.startDate)).csv"
-
-        let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent(fileName)
-        try csvData.write(to: tempURL)
-
-        let metadata: [String: Any] = [
-            "fileName": fileName,
-            "sampleCount": recordingSession.totalSampleCount,
-            "startDate": recordingSession.startDate.timeIntervalSince1970,
-        ]
-
-        return (tempURL, metadata)
-    }
-
-    func sendSession(_ recordingSession: RecordingSession) -> Bool {
+    func sendChunk(
+        fileURL: URL,
+        sessionId: String,
+        chunkIndex: Int,
+        totalChunks: Int,
+        startDate: Date,
+        totalSampleCount: Int
+    ) -> Bool {
         guard session.activationState == .activated else { return false }
 
-        do {
-            let (tempURL, metadata) = try prepareFileForTransfer(recordingSession)
-            session.sendFile(tempURL, metadata: metadata)
-            return true
-        } catch {
-            logger.error("Failed to write temp CSV: \(error.localizedDescription)")
-            return false
+        let metadata: [String: Any] = [
+            "fileName": fileURL.lastPathComponent,
+            "sessionId": sessionId,
+            "chunkIndex": chunkIndex,
+            "totalChunks": totalChunks,
+            "startDate": startDate.timeIntervalSince1970,
+            "totalSampleCount": totalSampleCount,
+        ]
+
+        session.sendFile(fileURL, metadata: metadata)
+        return true
+    }
+
+    func sendChunks(
+        chunkURLs: [URL],
+        sessionId: String,
+        startDate: Date,
+        totalSampleCount: Int
+    ) -> Bool {
+        guard session.activationState == .activated else { return false }
+        guard !chunkURLs.isEmpty else { return false }
+
+        let totalChunks = chunkURLs.count
+        for (index, url) in chunkURLs.enumerated() {
+            let sent = sendChunk(
+                fileURL: url,
+                sessionId: sessionId,
+                chunkIndex: index,
+                totalChunks: totalChunks,
+                startDate: startDate,
+                totalSampleCount: totalSampleCount
+            )
+            if !sent { return false }
         }
+        return true
     }
 }
 

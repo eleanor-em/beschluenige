@@ -2,9 +2,9 @@ import Foundation
 import os
 @testable import beschluenige_Watch_App
 
-final class MockMotionProvider: MotionProvider, @unchecked Sendable {
-    private var realProvider: (any MotionProvider)?
-    private let realProviderFactory: @Sendable () -> any MotionProvider
+final class MockMotionProvider: DeviceMotionProvider, @unchecked Sendable {
+    private var realProvider: (any DeviceMotionProvider)?
+    private let realProviderFactory: @Sendable () -> any DeviceMotionProvider
     private let timeoutInterval: TimeInterval
     private var accelHandler: (@Sendable ([AccelerometerSample]) -> Void)?
     private var dmHandler: (@Sendable ([DeviceMotionSample]) -> Void)?
@@ -18,7 +18,7 @@ final class MockMotionProvider: MotionProvider, @unchecked Sendable {
     )
 
     init(
-        realProviderFactory: @escaping @Sendable () -> any MotionProvider,
+        realProviderFactory: @escaping @Sendable () -> any DeviceMotionProvider,
         timeoutInterval: TimeInterval = 15
     ) {
         self.realProviderFactory = realProviderFactory

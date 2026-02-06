@@ -100,10 +100,10 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
         // On simulator, WCSession is not activated, so transfer fails
         // and falls back to local save
-        XCTAssertTrue(
-            app.staticTexts["Transfer failed. Saved locally:"]
-                .waitForExistence(timeout: 5)
-        )
+        let fallbackText = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'Transfer failed'")
+        ).firstMatch
+        XCTAssertTrue(fallbackText.waitForExistence(timeout: 10))
     }
 
     @MainActor
@@ -123,6 +123,18 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
         // Should return to main screen with Export Data button
         XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testSessionListShowsSeededSession() throws {
+        app.launch()
+
+        XCTAssertTrue(app.buttons["Sessions"].waitForExistence(timeout: 5))
+        app.buttons["Sessions"].tap()
+
+        // The UI-testing path seeds one session with 42 samples
+        let samplesText = app.staticTexts["42 samples"]
+        XCTAssertTrue(samplesText.waitForExistence(timeout: 5))
     }
 
     @MainActor

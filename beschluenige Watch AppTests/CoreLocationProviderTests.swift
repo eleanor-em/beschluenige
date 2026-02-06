@@ -27,7 +27,7 @@ struct CoreLocationProviderTests {
         provider.locationManager(CLLocationManager(), didUpdateLocations: [location])
 
         // The delegate dispatches via Task { @MainActor }, so we need to yield
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         #expect(received.count == 1)
         #expect(received[0].latitude == 43.65)
@@ -53,7 +53,7 @@ struct CoreLocationProviderTests {
         ]
 
         provider.locationManager(CLLocationManager(), didUpdateLocations: locations)
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         #expect(received.count == 2)
 
@@ -85,7 +85,7 @@ struct CoreLocationProviderTests {
     @Test func handleAuthorizationChangeDeniedThrows() async throws {
         let provider = CoreLocationProvider()
         // Wait for initial locationManagerDidChangeAuthorization callback to drain
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
@@ -93,7 +93,7 @@ struct CoreLocationProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.handleAuthorizationChange(.denied)
 
@@ -107,7 +107,7 @@ struct CoreLocationProviderTests {
 
     @Test func handleAuthorizationChangeNotDeterminedReStoresContinuation() async throws {
         let provider = CoreLocationProvider()
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
@@ -115,7 +115,7 @@ struct CoreLocationProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         // notDetermined means still waiting -- continuation is re-stored
         provider.handleAuthorizationChange(.notDetermined)
@@ -129,7 +129,7 @@ struct CoreLocationProviderTests {
 
     @Test func handleAuthorizationChangeAuthorizedSucceeds() async throws {
         let provider = CoreLocationProvider()
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
@@ -137,7 +137,7 @@ struct CoreLocationProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.handleAuthorizationChange(.authorizedWhenInUse)
 
@@ -146,7 +146,7 @@ struct CoreLocationProviderTests {
 
     @Test func handleAuthorizationChangeAuthorizedAlwaysSucceeds() async throws {
         let provider = CoreLocationProvider()
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
@@ -154,7 +154,7 @@ struct CoreLocationProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.handleAuthorizationChange(.authorizedAlways)
 
@@ -179,13 +179,13 @@ struct CoreLocationProviderTests {
     @Test func requestAuthorizationContinuationPath() async throws {
         let provider = CoreLocationProvider()
         // Wait for initial locationManagerDidChangeAuthorization callback to drain
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await provider.requestAuthorization(currentStatus: .notDetermined)
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         provider.handleAuthorizationChange(.authorizedWhenInUse)
 
@@ -194,7 +194,7 @@ struct CoreLocationProviderTests {
 
     @Test func handleAuthorizationChangeUnknownStatusResumes() async throws {
         let provider = CoreLocationProvider()
-        try await Task.sleep(for: .milliseconds(200))
+        await Task.yield()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
@@ -202,7 +202,7 @@ struct CoreLocationProviderTests {
             }
         }
 
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         let unknownStatus = unsafeBitCast(Int32(99), to: CLAuthorizationStatus.self)
         provider.handleAuthorizationChange(unknownStatus)

@@ -37,7 +37,7 @@ struct ContentViewTests {
         )
         try await manager.startRecording()
         hrStub.sendSamples([HeartRateSample(timestamp: Date(), beatsPerMinute: 120)])
-        try await Task.sleep(for: .milliseconds(100))
+        await Task.yield()
 
         _ = RecordingView(workoutManager: manager)
         manager.stopRecording()

@@ -6,61 +6,100 @@ import WatchConnectivity
 @MainActor
 struct PhoneConnectivityManagerTests {
 
-    @Test func sendSessionReturnsFalseWhenNotActivated() {
+    @Test func sendChunksReturnsFalseWhenNotActivated() throws {
         let stub = StubConnectivitySession()
         stub.activationState = .notActivated
         let manager = PhoneConnectivityManager(session: stub)
 
-        let session = RecordingSession(startDate: Date())
-        let result = manager.sendSession(session)
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_chunk_\(UUID().uuidString).csv")
+        try "test".write(to: tempURL, atomically: true, encoding: .utf8)
+
+        let result = manager.sendChunks(
+            chunkURLs: [tempURL],
+            sessionId: "2024-02-01_120000",
+            startDate: Date(),
+            totalSampleCount: 10
+        )
+        #expect(!result)
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    @Test func sendChunksReturnsFalseWhenEmpty() {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let result = manager.sendChunks(
+            chunkURLs: [],
+            sessionId: "2024-02-01_120000",
+            startDate: Date(),
+            totalSampleCount: 0
+        )
         #expect(!result)
     }
 
-    @Test func sendSessionReturnsTrueWhenActivated() throws {
+    @Test func sendChunksSendsAllFiles() throws {
         let stub = StubConnectivitySession()
         stub.activationState = .activated
         let manager = PhoneConnectivityManager(session: stub)
 
-        let session = RecordingSession(startDate: Date())
-        let result = manager.sendSession(session)
+        let url1 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).csv")
+        let url2 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_1_\(UUID().uuidString).csv")
+        try "data1".write(to: url1, atomically: true, encoding: .utf8)
+        try "data2".write(to: url2, atomically: true, encoding: .utf8)
 
-        #expect(result)
-        #expect(stub.sentFiles.count == 1)
-
-        // Clean up the temp file so it does not interfere with other tests
-        let (url, _) = try manager.prepareFileForTransfer(session)
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    @Test func sendSessionReturnsFalseWhenPrepareThrows() {
-        let stub = StubConnectivitySession()
-        stub.activationState = .activated
-        let manager = PhoneConnectivityManager(session: stub)
-
-        // Use a fixed date so the filename is unique and not shared with other tests
-        let fixedDate = Date(timeIntervalSince1970: 1000000000)
-        let session = RecordingSession(startDate: fixedDate)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        let fileName = "TEST_hr_\(formatter.string(from: session.startDate)).csv"
-
-        let tempPath = FileManager.default.temporaryDirectory
-            .appendingPathComponent(fileName)
-        // Remove any leftover file at this path
-        try? FileManager.default.removeItem(at: tempPath)
-
-        let blockingDir = tempPath
-
-        // Create a directory where the file would go, causing .write to fail
-        try? FileManager.default.createDirectory(
-            at: blockingDir,
-            withIntermediateDirectories: false
+        let startDate = Date(timeIntervalSince1970: 1706812345)
+        let result = manager.sendChunks(
+            chunkURLs: [url1, url2],
+            sessionId: "2024-02-01_120000",
+            startDate: startDate,
+            totalSampleCount: 42
         )
 
-        let result = manager.sendSession(session)
+        #expect(result)
+        #expect(stub.sentFiles.count == 2)
 
-        try? FileManager.default.removeItem(at: blockingDir)
+        // Verify metadata on first chunk
+        let meta0 = stub.sentFiles[0].1
+        #expect(meta0["chunkIndex"] as? Int == 0)
+        #expect(meta0["totalChunks"] as? Int == 2)
+        #expect(meta0["sessionId"] as? String == "2024-02-01_120000")
+        #expect(meta0["totalSampleCount"] as? Int == 42)
+        #expect(meta0["startDate"] as? TimeInterval == startDate.timeIntervalSince1970)
+
+        // Verify metadata on second chunk
+        let meta1 = stub.sentFiles[1].1
+        #expect(meta1["chunkIndex"] as? Int == 1)
+        #expect(meta1["totalChunks"] as? Int == 2)
+
+        try? FileManager.default.removeItem(at: url1)
+        try? FileManager.default.removeItem(at: url2)
+    }
+
+    @Test func sendChunkReturnsFalseWhenNotActivated() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .notActivated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_single_\(UUID().uuidString).csv")
+        try "data".write(to: tempURL, atomically: true, encoding: .utf8)
+
+        let result = manager.sendChunk(
+            fileURL: tempURL,
+            sessionId: "test",
+            chunkIndex: 0,
+            totalChunks: 1,
+            startDate: Date(),
+            totalSampleCount: 5
+        )
         #expect(!result)
+
+        try? FileManager.default.removeItem(at: tempURL)
     }
 
     @Test func activateCallsSessionActivate() {
@@ -83,44 +122,6 @@ struct PhoneConnectivityManagerTests {
 
         #expect(!stub.activateCalled)
         #expect(!stub.delegateSet)
-    }
-
-    @Test func prepareFileForTransferWritesCsv() throws {
-        let stub = StubConnectivitySession()
-        let manager = PhoneConnectivityManager(session: stub)
-
-        let t = Date(timeIntervalSince1970: 1706812345)
-        var session = RecordingSession(startDate: t)
-        session.heartRateSamples = [
-            HeartRateSample(timestamp: t, beatsPerMinute: 100),
-        ]
-
-        let (url, metadata) = try manager
-            .prepareFileForTransfer(session)
-
-        let content = try String(contentsOf: url, encoding: .utf8)
-        #expect(content.contains("H,"))
-        #expect((metadata["fileName"] as? String)?.hasPrefix("TEST_hr_") == true)
-        #expect(metadata["sampleCount"] as? Int == 1)
-        #expect(metadata["startDate"] as? TimeInterval == t.timeIntervalSince1970)
-
-        try FileManager.default.removeItem(at: url)
-    }
-
-    @Test func prepareFileForTransferEmptySession() throws {
-        let stub = StubConnectivitySession()
-        let manager = PhoneConnectivityManager(session: stub)
-
-        let session = RecordingSession(startDate: Date())
-
-        let (url, metadata) = try manager
-            .prepareFileForTransfer(session)
-
-        let content = try String(contentsOf: url, encoding: .utf8)
-        #expect(content.hasPrefix("type,timestamp,"))
-        #expect(metadata["sampleCount"] as? Int == 0)
-
-        try FileManager.default.removeItem(at: url)
     }
 
     @Test func delegateHandlesActivationWithoutError() {

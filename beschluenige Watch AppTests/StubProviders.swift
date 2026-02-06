@@ -63,7 +63,7 @@ enum StubProviderError: Error {
     case authorizationFailed
 }
 
-final class StubMotionProvider: MotionProvider, @unchecked Sendable {
+final class StubMotionProvider: DeviceMotionProvider, @unchecked Sendable {
     var shouldThrow = false
     var monitoringStarted = false
     var monitoringStopped = false

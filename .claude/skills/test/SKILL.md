@@ -13,10 +13,11 @@ Run tests for the watchOS app and analyze the results.
    ```
    rm -rf TestResults.xcresult
    ```
-2. Run watchOS tests with coverage enabled:
+2. Shut down any running simulators, then run watchOS tests with coverage enabled and max 2 parallel workers (3+ clones cause spurious launch failures on watchOS):
    ```
+   xcrun simctl shutdown all 2>/dev/null
    xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS
-      Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath ./TestResults.xcresult >/tmp/test.out 2>&1
+      Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath ./TestResults.xcresult -maximum-parallel-testing-workers 2 >/tmp/test.out 2>&1
    ```
 3. Analyse results using `grep` or `tail`.
    - Show any build errors to the user

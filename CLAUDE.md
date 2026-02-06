@@ -8,11 +8,7 @@ Open `beschluenige.xcodeproj` in Xcode. The project targets iOS 26.2 and watchOS
 
 ## Test
 
-Select the "beschluenige Watch App" scheme, pick a watchOS simulator, and press Cmd+U. Unit tests use Swift Testing; UI tests use XCTest.
-
-```
-xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)'
-```
+Use the `/test` skill to run tests and get a filtered report. Unit tests use Swift Testing; UI tests use XCTest.
 
 Note: the Series 10 simulator is not available. Use Ultra 3 or Series 11.
 
