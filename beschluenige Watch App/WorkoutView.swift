@@ -18,10 +18,14 @@ struct WorkoutView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
+                Text("started \(context.date.secondsOrMinutesSince(workoutManager.currentWorkout!.startDate)) ago")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
 
-                if let lastSample = workoutManager.lastSampleDate {
+                if let lastSample = workoutManager.lastSampleDate() {
                     let elapsed = context.date.timeIntervalSince(lastSample)
-                    Text("\(Int(elapsed))s ago")
+                    let age = context.date.secondsOrMinutesSince(lastSample)
+                    Text("updated \(age) ago / \(workoutManager.chunkCount) chunks")
                         .font(.caption2)
                         .foregroundStyle(elapsed > 10 ? .orange : .secondary)
                 } else {
@@ -31,10 +35,10 @@ struct WorkoutView: View {
                 }
 
                 Text(
-                    "\(workoutManager.heartRateSampleCount) HR"
-                        + " / \(workoutManager.locationSampleCount) GPS"
-                        + " / \(workoutManager.accelerometerSampleCount) accel"
-                        + " / \(workoutManager.deviceMotionSampleCount) motion"
+                    "\(workoutManager.heartRateSampleCount) H"
+                        + " / \(workoutManager.locationSampleCount) G"
+                        + " / \(workoutManager.accelerometerSampleCount.roundedWithAbbreviations) A"
+                        + " / \(workoutManager.deviceMotionSampleCount.roundedWithAbbreviations) M"
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)

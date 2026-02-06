@@ -72,10 +72,10 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		91AB0C55F6B20DC97EB50D74 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		91AB0C55F6B20DC97EB50D74 /* Exceptions for "beschluenige" folder in "beschluenige Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"Data/ChunkTransferInfo.swift",
+				Data/ChunkTransferInfo.swift,
 			);
 			target = FDBDF2672F2F5AAF008747A7 /* beschluenige Watch App */;
 		};
@@ -85,7 +85,7 @@
 		FDBDF2472F2F5AAE008747A7 /* beschluenige */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				91AB0C55F6B20DC97EB50D74 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+				91AB0C55F6B20DC97EB50D74 /* Exceptions for "beschluenige" folder in "beschluenige Watch App" target */,
 			);
 			path = beschluenige;
 			sourceTree = "<group>";

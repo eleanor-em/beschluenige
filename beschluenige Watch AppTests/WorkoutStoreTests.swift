@@ -15,14 +15,19 @@ struct WorkoutStoreTests {
         return (store, persistenceURL)
     }
 
-    @Test func registerWorkoutAddsRecord() {
+    @Test func registerWorkoutAddsRecord() throws {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
+
+        let chunkURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_reg_\(UUID().uuidString).csv")
+        try Data("hello".utf8).write(to: chunkURL)
+        defer { try? FileManager.default.removeItem(at: chunkURL) }
 
         store.registerWorkout(
             workoutId: "2026-02-06_183000",
             startDate: Date(timeIntervalSince1970: 1000),
-            chunkURLs: [URL(fileURLWithPath: "/tmp/chunk_0.csv")],
+            chunkURLs: [chunkURL],
             totalSampleCount: 42
         )
 
@@ -30,8 +35,9 @@ struct WorkoutStoreTests {
         #expect(store.workouts[0].workoutId == "2026-02-06_183000")
         #expect(store.workouts[0].chunkCount == 1)
         #expect(store.workouts[0].totalSampleCount == 42)
+        #expect(store.workouts[0].fileSizeBytes == 5)
         #expect(store.workouts[0].transferred == false)
-        #expect(store.workouts[0].chunkFileNames == ["chunk_0.csv"])
+        #expect(store.workouts[0].chunkFileNames == [chunkURL.lastPathComponent])
         #expect(store.workouts[0].displayName == "workout_2026-02-06_183000")
     }
 

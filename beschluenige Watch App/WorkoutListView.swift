@@ -7,11 +7,14 @@ struct WorkoutRowView: View {
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text(record.startDate, style: .date)
+                Text("\(record.startDate, style: .date) \(record.startDate, style: .time)")
                     .font(.caption)
-                Text("\(record.totalSampleCount) samples")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                Text(
+                    "\(record.chunkCount) chunks - "
+                        + String(format: "%.1f MB", record.fileSizeMB)
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
             Spacer()
             if let progress, progress.fractionCompleted < 1.0 {

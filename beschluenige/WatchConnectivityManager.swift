@@ -33,8 +33,10 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         let totalChunks: Int
         var receivedChunks: [ChunkFile]
         var mergedFileName: String?
+        var fileSizeBytes: Int64
 
         var isComplete: Bool { receivedChunks.count == totalChunks }
+        var fileSizeMB: Double { Double(fileSizeBytes) / 1_048_576.0 }
 
         var mergedFileURL: URL? {
             guard let name = mergedFileName else { return nil }
@@ -60,6 +62,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             self.totalSampleCount = totalSampleCount
             self.totalChunks = totalChunks
             self.receivedChunks = []
+            self.fileSizeBytes = 0
         }
     }
 
@@ -110,6 +113,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         workouts[idx].receivedChunks.append(
             ChunkFile(chunkIndex: info.chunkIndex, fileName: info.fileName)
         )
+        workouts[idx].fileSizeBytes += info.chunkSizeBytes
 
         if workouts[idx].isComplete {
             mergeChunks(at: idx)
@@ -152,6 +156,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         do {
             try merged.write(to: mergedURL)
             workouts[index].mergedFileName = mergedName
+            workouts[index].fileSizeBytes = Int64(merged.count)
 
             // Delete individual chunk files
             for chunk in sorted {
@@ -221,6 +226,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
         let totalChunks = metadata?["totalChunks"] as? Int ?? 1
         let totalSampleCount = metadata?["totalSampleCount"] as? Int ?? 0
         let startInterval = metadata?["startDate"] as? TimeInterval ?? 0
+        let chunkSizeBytes = metadata?["chunkSizeBytes"] as? Int64 ?? 0
 
         guard let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
@@ -242,7 +248,8 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 totalChunks: totalChunks,
                 startDate: startDate,
                 totalSampleCount: totalSampleCount,
-                fileName: fileName
+                fileName: fileName,
+                chunkSizeBytes: chunkSizeBytes
             )
             Task { @MainActor in
                 self.processChunk(info)

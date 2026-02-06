@@ -5,13 +5,15 @@ import os
 final class WorkoutManager {
     var isRecording = false
     var currentHeartRate: Double = 0
-    var lastSampleDate: Date?
+    var lastHeartRateSampleDate: Date?
+    var lastLocationSampleDate: Date?
     var currentWorkout: Workout?
     var heartRateSampleCount: Int = 0
     var locationSampleCount: Int = 0
     var accelerometerSampleCount: Int = 0
     var deviceMotionSampleCount: Int = 0
-    var flushInterval: TimeInterval = 600
+    var chunkCount: Int = 0
+    var flushInterval: TimeInterval = 120
 
     private var cumulativeHeartRateCount: Int = 0
     private var cumulativeLocationCount: Int = 0
@@ -45,7 +47,8 @@ final class WorkoutManager {
     func startRecording() async throws {
         currentWorkout = Workout(startDate: Date())
         currentHeartRate = 0
-        lastSampleDate = nil
+        lastHeartRateSampleDate = nil
+        lastLocationSampleDate = nil
         heartRateSampleCount = 0
         locationSampleCount = 0
         accelerometerSampleCount = 0
@@ -54,6 +57,7 @@ final class WorkoutManager {
         cumulativeLocationCount = 0
         cumulativeAccelerometerCount = 0
         cumulativeDeviceMotionCount = 0
+        chunkCount = 0
 
         try await provider.startMonitoring { [weak self] samples in
             Task { @MainActor [weak self] in
@@ -135,6 +139,7 @@ final class WorkoutManager {
             cumulativeAccelerometerCount + currentWorkout!.accelerometerSamples.count
         deviceMotionSampleCount =
             cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
+        chunkCount += 1
     }
 
     private func processHeartRateSamples(_ samples: [HeartRateSample]) {
@@ -147,7 +152,7 @@ final class WorkoutManager {
         heartRateSampleCount = cumulativeHeartRateCount + currentWorkout!.heartRateSamples.count
         if let last = samples.last {
             currentHeartRate = last.beatsPerMinute
-            lastSampleDate = last.timestamp
+            lastHeartRateSampleDate = last.timestamp
         }
     }
 
@@ -159,6 +164,9 @@ final class WorkoutManager {
         assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
         currentWorkout!.locationSamples.append(contentsOf: samples)
         locationSampleCount = cumulativeLocationCount + currentWorkout!.locationSamples.count
+        if let last = samples.last {
+            lastLocationSampleDate = last.timestamp
+        }
     }
 
     private func processAccelerometerSamples(_ samples: [AccelerometerSample]) {
@@ -181,5 +189,11 @@ final class WorkoutManager {
         currentWorkout!.deviceMotionSamples.append(contentsOf: samples)
         deviceMotionSampleCount =
             cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
+    }
+
+    func lastSampleDate() -> Date? {
+        guard let lastHeartRateSampleDate = lastHeartRateSampleDate else { return nil }
+        guard let lastLocationSampleDate = lastLocationSampleDate else { return nil }
+        return min(lastHeartRateSampleDate, lastLocationSampleDate)
     }
 }

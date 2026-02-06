@@ -353,7 +353,7 @@ struct WorkoutManagerTests {
 
         #expect(manager.currentWorkout?.sampleCount == 2)
         #expect(manager.currentHeartRate == 130)
-        #expect(manager.lastSampleDate == t.addingTimeInterval(1))
+        #expect(manager.lastSampleDate() == t.addingTimeInterval(1))
 
         manager.stopRecording()
     }
@@ -448,7 +448,7 @@ struct WorkoutManagerTests {
         await Task.yield()
 
         #expect(manager.currentHeartRate == 0)
-        #expect(manager.lastSampleDate == nil)
+        #expect(manager.lastSampleDate() == nil)
 
         manager.stopRecording()
     }

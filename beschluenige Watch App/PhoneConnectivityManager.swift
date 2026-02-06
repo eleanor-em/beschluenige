@@ -44,13 +44,20 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         let totalChunks = chunkURLs.count
         let parent = Progress(totalUnitCount: Int64(totalChunks))
         for (index, url) in chunkURLs.enumerated() {
+            let fileSize: Int64 = {
+                guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+                      let size = attrs[.size] as? Int64
+                else { return 0 }
+                return size
+            }()
             let info = ChunkTransferInfo(
                 workoutId: workoutId,
                 chunkIndex: index,
                 totalChunks: totalChunks,
                 startDate: startDate,
                 totalSampleCount: totalSampleCount,
-                fileName: url.lastPathComponent
+                fileName: url.lastPathComponent,
+                chunkSizeBytes: fileSize
             )
             guard let child = sendChunk(
                 fileURL: url, info: info

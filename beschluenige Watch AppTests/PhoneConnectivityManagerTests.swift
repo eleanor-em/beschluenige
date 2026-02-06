@@ -71,11 +71,13 @@ struct PhoneConnectivityManagerTests {
         #expect(meta0["workoutId"] as? String == "2024-02-01_120000")
         #expect(meta0["totalSampleCount"] as? Int == 42)
         #expect(meta0["startDate"] as? TimeInterval == startDate.timeIntervalSince1970)
+        #expect((meta0["chunkSizeBytes"] as? Int64 ?? 0) > 0)
 
         // Verify metadata on second chunk
         let meta1 = stub.sentFiles[1].1
         #expect(meta1["chunkIndex"] as? Int == 1)
         #expect(meta1["totalChunks"] as? Int == 2)
+        #expect((meta1["chunkSizeBytes"] as? Int64 ?? 0) > 0)
 
         try? FileManager.default.removeItem(at: url1)
         try? FileManager.default.removeItem(at: url2)

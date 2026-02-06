@@ -7,6 +7,7 @@ struct ChunkTransferInfo {
     let startDate: Date
     let totalSampleCount: Int
     var fileName: String = ""
+    var chunkSizeBytes: Int64 = 0
 
     func metadata() -> [String: Any] {
         [
@@ -16,6 +17,7 @@ struct ChunkTransferInfo {
             "totalChunks": totalChunks,
             "startDate": startDate.timeIntervalSince1970,
             "totalSampleCount": totalSampleCount,
+            "chunkSizeBytes": chunkSizeBytes,
         ]
     }
 }

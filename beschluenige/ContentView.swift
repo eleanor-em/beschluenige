@@ -89,12 +89,17 @@ struct ContentView: View {
             Text(record.displayName)
                 .font(.headline)
             if record.isComplete {
-                Text("\(record.totalSampleCount) samples - \(record.startDate, style: .date)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                let sizeStr = String(format: "%.1f MB", record.fileSizeMB)
+                Text(
+                    "\(record.totalChunks) chunks - \(sizeStr)"
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             } else {
+                let sizeStr = String(format: "%.1f MB", record.fileSizeMB)
                 let chunkLabel =
-                    "Receiving \(record.receivedChunks.count)/\(record.totalChunks) chunks"
+                    "Receiving \(record.receivedChunks.count)/\(record.totalChunks)"
+                    + " chunks - \(sizeStr)"
                 Text(chunkLabel)
                     .font(.caption)
                     .foregroundStyle(.orange)

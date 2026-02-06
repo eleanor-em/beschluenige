@@ -21,6 +21,7 @@ struct WorkoutListViewTests {
             startDate: Date(),
             chunkCount: 1,
             totalSampleCount: totalSampleCount,
+            fileSizeBytes: 1_048_576,
             transferred: transferred,
             chunkFileNames: ["chunk.csv"]
         )

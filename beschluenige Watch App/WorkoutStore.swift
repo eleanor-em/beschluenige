@@ -27,12 +27,20 @@ final class WorkoutStore: @unchecked Sendable {
         totalSampleCount: Int
     ) {
         guard !workouts.contains(where: { $0.workoutId == workoutId }) else { return }
+        let fm = FileManager.default
+        var totalBytes: Int64 = 0
+        for url in chunkURLs {
+            if let attrs = try? fm.attributesOfItem(atPath: url.path) {
+                totalBytes += (attrs[.size] as? Int64) ?? 0
+            }
+        }
         let record = WatchWorkoutRecord(
             id: UUID(),
             workoutId: workoutId,
             startDate: startDate,
             chunkCount: chunkURLs.count,
             totalSampleCount: totalSampleCount,
+            fileSizeBytes: totalBytes,
             transferred: false,
             chunkFileNames: chunkURLs.map { $0.lastPathComponent }
         )
