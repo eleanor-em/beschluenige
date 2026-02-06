@@ -121,4 +121,18 @@ struct WorkoutListViewTests {
         let view = WorkoutRowView(record: makeRecord(transferred: false))
         _ = view.body
     }
+
+    @Test func rowRendersWithActiveProgress() {
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 3
+        let view = WorkoutRowView(record: makeRecord(transferred: false), progress: progress)
+        _ = view.body
+    }
+
+    @Test func rowRendersWithCompletedProgress() {
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 10
+        let view = WorkoutRowView(record: makeRecord(transferred: true), progress: progress)
+        _ = view.body
+    }
 }

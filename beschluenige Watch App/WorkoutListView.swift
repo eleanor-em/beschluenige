@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WorkoutRowView: View {
     var record: WatchWorkoutRecord
+    var progress: Progress?
 
     var body: some View {
         HStack {
@@ -13,7 +14,10 @@ struct WorkoutRowView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            if record.transferred {
+            if let progress, progress.fractionCompleted < 1.0 {
+                ProgressView(progress)
+                    .progressViewStyle(.circular)
+            } else if record.transferred {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
             } else {
@@ -56,7 +60,12 @@ struct WorkoutListView: View {
                 Text("No workouts")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(workoutStore.workouts, content: WorkoutRowView.init(record:))
+                ForEach(workoutStore.workouts) { record in
+                    WorkoutRowView(
+                        record: record,
+                        progress: workoutStore.activeTransfers[record.workoutId]
+                    )
+                }
             }
 
             Section {

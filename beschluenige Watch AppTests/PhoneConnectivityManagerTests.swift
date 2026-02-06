@@ -6,7 +6,7 @@ import WatchConnectivity
 @MainActor
 struct PhoneConnectivityManagerTests {
 
-    @Test func sendChunksReturnsFalseWhenNotActivated() throws {
+    @Test func sendChunksReturnsNilWhenNotActivated() throws {
         let stub = StubConnectivitySession()
         stub.activationState = .notActivated
         let manager = PhoneConnectivityManager(session: stub)
@@ -21,12 +21,12 @@ struct PhoneConnectivityManagerTests {
             startDate: Date(),
             totalSampleCount: 10
         )
-        #expect(!result)
+        #expect(result == nil)
 
         try? FileManager.default.removeItem(at: tempURL)
     }
 
-    @Test func sendChunksReturnsFalseWhenEmpty() {
+    @Test func sendChunksReturnsNilWhenEmpty() {
         let stub = StubConnectivitySession()
         stub.activationState = .activated
         let manager = PhoneConnectivityManager(session: stub)
@@ -37,7 +37,7 @@ struct PhoneConnectivityManagerTests {
             startDate: Date(),
             totalSampleCount: 0
         )
-        #expect(!result)
+        #expect(result == nil)
     }
 
     @Test func sendChunksSendsAllFiles() throws {
@@ -60,7 +60,8 @@ struct PhoneConnectivityManagerTests {
             totalSampleCount: 42
         )
 
-        #expect(result)
+        #expect(result != nil)
+        #expect(result?.totalUnitCount == 2)
         #expect(stub.sentFiles.count == 2)
 
         // Verify metadata on first chunk
@@ -80,7 +81,7 @@ struct PhoneConnectivityManagerTests {
         try? FileManager.default.removeItem(at: url2)
     }
 
-    @Test func sendChunkReturnsFalseWhenNotActivated() throws {
+    @Test func sendChunkReturnsNilWhenNotActivated() throws {
         let stub = StubConnectivitySession()
         stub.activationState = .notActivated
         let manager = PhoneConnectivityManager(session: stub)
@@ -91,13 +92,15 @@ struct PhoneConnectivityManagerTests {
 
         let result = manager.sendChunk(
             fileURL: tempURL,
-            workoutId: "test",
-            chunkIndex: 0,
-            totalChunks: 1,
-            startDate: Date(),
-            totalSampleCount: 5
+            info: ChunkTransferInfo(
+                workoutId: "test",
+                chunkIndex: 0,
+                totalChunks: 1,
+                startDate: Date(),
+                totalSampleCount: 5
+            )
         )
-        #expect(!result)
+        #expect(result == nil)
 
         try? FileManager.default.removeItem(at: tempURL)
     }

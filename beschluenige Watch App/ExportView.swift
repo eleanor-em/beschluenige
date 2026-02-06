@@ -31,6 +31,9 @@ struct ExportView: View {
         action.markTransferred = { workoutId in
             workoutStore.markTransferred(workoutId: workoutId)
         }
+        action.storeProgress = { workoutId, progress in
+            workoutStore.storeTransferProgress(workoutId: workoutId, progress: progress)
+        }
         self.exportAction = action
         self._transferState = State(initialValue: initialTransferState)
     }

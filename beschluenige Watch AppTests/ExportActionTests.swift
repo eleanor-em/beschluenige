@@ -6,7 +6,7 @@ struct ExportActionTests {
 
     @Test func executeReturnsSentOnSuccess() {
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -30,7 +30,7 @@ struct ExportActionTests {
 
     @Test func executeReturnsSavedLocallyOnTransferFailure() throws {
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in false }
+        action.sendChunksViaPhone = { _, _, _, _ in nil }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -85,7 +85,7 @@ struct ExportActionTests {
     @Test func executeCallsRegisterWorkoutAfterFinalize() {
         var registered = false
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -107,7 +107,7 @@ struct ExportActionTests {
     @Test func executeCallsMarkTransferredOnSuccess() {
         var marked = false
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -129,7 +129,7 @@ struct ExportActionTests {
     @Test func executeDoesNotCallMarkTransferredOnFailure() {
         var marked = false
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in false }
+        action.sendChunksViaPhone = { _, _, _, _ in nil }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -162,6 +162,55 @@ struct ExportActionTests {
         _ = action.execute(workout: &workout)
 
         #expect(!registered)
+    }
+
+    @Test func executeCallsStoreProgressOnSuccess() {
+        var storedWorkoutId: String?
+        var storedProgress: Progress?
+        var action = ExportAction()
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
+                HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+            ]
+            return try workout.finalizeChunks()
+        }
+        action.storeProgress = { workoutId, progress in
+            storedWorkoutId = workoutId
+            storedProgress = progress
+        }
+
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000013))
+        _ = action.execute(workout: &workout)
+
+        #expect(storedWorkoutId == workout.workoutId)
+        #expect(storedProgress != nil)
+
+        for url in workout.chunkURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func executeDoesNotCallStoreProgressOnFailure() {
+        var storeCalled = false
+        var action = ExportAction()
+        action.sendChunksViaPhone = { _, _, _, _ in nil }
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
+                HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
+            ]
+            return try workout.finalizeChunks()
+        }
+        action.storeProgress = { _, _ in storeCalled = true }
+
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000014))
+        _ = action.execute(workout: &workout)
+
+        #expect(!storeCalled)
+
+        for url in workout.chunkURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     @Test func executeUsesDefaultPhoneConnectivityOnSimulator() throws {

@@ -5,19 +5,21 @@ enum TransferState: Sendable {
 }
 
 struct ExportAction {
-    var sendChunksViaPhone: ([URL], String, Date, Int) -> Bool = { chunkURLs, workoutId, startDate, totalSampleCount in
-        PhoneConnectivityManager.shared.sendChunks(
-            chunkURLs: chunkURLs,
-            workoutId: workoutId,
-            startDate: startDate,
-            totalSampleCount: totalSampleCount
-        )
-    }
+    var sendChunksViaPhone: ([URL], String, Date, Int) -> Progress? =
+        { chunkURLs, workoutId, startDate, totalSampleCount in
+            PhoneConnectivityManager.shared.sendChunks(
+                chunkURLs: chunkURLs,
+                workoutId: workoutId,
+                startDate: startDate,
+                totalSampleCount: totalSampleCount
+            )
+        }
     var finalizeWorkout: (inout Workout) throws -> [URL] = { workout in
         try workout.finalizeChunks()
     }
     var registerWorkout: (String, Date, [URL], Int) -> Void = { _, _, _, _ in }
     var markTransferred: (String) -> Void = { _ in }
+    var storeProgress: (String, Progress) -> Void = { _, _ in }
 
     func execute(workout: inout Workout) -> TransferState {
         let chunkURLs: [URL]
@@ -32,10 +34,10 @@ struct ExportAction {
             workout.workoutId, workout.startDate, chunkURLs, workout.cumulativeSampleCount
         )
 
-        let success = sendChunksViaPhone(
+        if let progress = sendChunksViaPhone(
             chunkURLs, workout.workoutId, workout.startDate, workout.cumulativeSampleCount
-        )
-        if success {
+        ) {
+            storeProgress(workout.workoutId, progress)
             markTransferred(workout.workoutId)
             return .sent
         }

@@ -69,7 +69,7 @@ struct ExportViewTests {
 
     @Test func sendToPhoneSetsSentOnSuccess() {
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -95,7 +95,7 @@ struct ExportViewTests {
 
     @Test func sendToPhoneSetsLocalFallback() {
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in false }
+        action.sendChunksViaPhone = { _, _, _, _ in nil }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
@@ -139,7 +139,7 @@ struct ExportViewTests {
 
     @Test func handleSendToPhoneWithWorkout() {
         var action = ExportAction()
-        action.sendChunksViaPhone = { _, _, _, _ in true }
+        action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
             workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),

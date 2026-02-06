@@ -4,6 +4,8 @@ import os
 @Observable
 final class WorkoutStore: @unchecked Sendable {
     var workouts: [WatchWorkoutRecord] = []
+    var activeTransfers: [String: Progress] = [:]
+    private var transferObservations: [String: NSKeyValueObservation] = [:]
 
     private let persistenceURL: URL
     private let logger = Logger(
@@ -44,6 +46,21 @@ final class WorkoutStore: @unchecked Sendable {
         }
         workouts[index].transferred = true
         saveWorkouts()
+    }
+
+    func storeTransferProgress(workoutId: String, progress: Progress) {
+        activeTransfers[workoutId] = progress
+        transferObservations[workoutId] = progress.observe(
+            \.fractionCompleted, options: [.new]
+        ) { [weak self] _, _ in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if progress.fractionCompleted >= 1.0 {
+                    self.activeTransfers.removeValue(forKey: workoutId)
+                    self.transferObservations.removeValue(forKey: workoutId)
+                }
+            }
+        }
     }
 
     func deleteAll() {

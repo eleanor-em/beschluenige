@@ -8,12 +8,14 @@ protocol ConnectivitySession: AnyObject {
     var isDeviceSupported: Bool { get }
     func setDelegate(_ delegate: any WCSessionDelegate)
     func activate()
-    func sendFile(_ file: URL, metadata: [String: Any])
+    func sendFile(_ file: URL, metadata: [String: Any]) -> Progress?
 }
 
 extension WCSession: ConnectivitySession {
     var isDeviceSupported: Bool { WCSession.isSupported() }
     func setDelegate(_ delegate: any WCSessionDelegate) { self.delegate = delegate }
     // Use a different name to avoid infinite recursion.
-    func sendFile(_ file: URL, metadata: [String: Any]) { transferFile(file, metadata: metadata) }
+    func sendFile(_ file: URL, metadata: [String: Any]) -> Progress? {
+        transferFile(file, metadata: metadata).progress
+    }
 }

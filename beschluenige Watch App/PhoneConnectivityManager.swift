@@ -27,27 +27,9 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         session.activate()
     }
 
-    func sendChunk(
-        fileURL: URL,
-        workoutId: String,
-        chunkIndex: Int,
-        totalChunks: Int,
-        startDate: Date,
-        totalSampleCount: Int
-    ) -> Bool {
-        guard session.activationState == .activated else { return false }
-
-        let metadata: [String: Any] = [
-            "fileName": fileURL.lastPathComponent,
-            "workoutId": workoutId,
-            "chunkIndex": chunkIndex,
-            "totalChunks": totalChunks,
-            "startDate": startDate.timeIntervalSince1970,
-            "totalSampleCount": totalSampleCount,
-        ]
-
-        session.sendFile(fileURL, metadata: metadata)
-        return true
+    func sendChunk(fileURL: URL, info: ChunkTransferInfo) -> Progress? {
+        guard session.activationState == .activated else { return nil }
+        return session.sendFile(fileURL, metadata: info.metadata())
     }
 
     func sendChunks(
@@ -55,23 +37,27 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         workoutId: String,
         startDate: Date,
         totalSampleCount: Int
-    ) -> Bool {
-        guard session.activationState == .activated else { return false }
-        guard !chunkURLs.isEmpty else { return false }
+    ) -> Progress? {
+        guard session.activationState == .activated else { return nil }
+        guard !chunkURLs.isEmpty else { return nil }
 
         let totalChunks = chunkURLs.count
+        let parent = Progress(totalUnitCount: Int64(totalChunks))
         for (index, url) in chunkURLs.enumerated() {
-            let sent = sendChunk(
-                fileURL: url,
+            let info = ChunkTransferInfo(
                 workoutId: workoutId,
                 chunkIndex: index,
                 totalChunks: totalChunks,
                 startDate: startDate,
-                totalSampleCount: totalSampleCount
+                totalSampleCount: totalSampleCount,
+                fileName: url.lastPathComponent
             )
-            if !sent { return false }
+            guard let child = sendChunk(
+                fileURL: url, info: info
+            ) else { return nil }
+            parent.addChild(child, withPendingUnitCount: 1)
         }
-        return true
+        return parent
     }
 }
 

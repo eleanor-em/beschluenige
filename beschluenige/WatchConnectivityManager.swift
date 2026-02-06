@@ -85,22 +85,15 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         saveWorkouts()
     }
 
-    func processChunk(
-        workoutId: String,
-        chunkIndex: Int,
-        totalChunks: Int,
-        fileName: String,
-        startDate: Date,
-        totalSampleCount: Int
-    ) {
-        var recordIndex = workouts.firstIndex(where: { $0.workoutId == workoutId })
+    func processChunk(_ info: ChunkTransferInfo) {
+        var recordIndex = workouts.firstIndex(where: { $0.workoutId == info.workoutId })
 
         if recordIndex == nil {
             let record = WorkoutRecord(
-                workoutId: workoutId,
-                startDate: startDate,
-                totalSampleCount: totalSampleCount,
-                totalChunks: totalChunks
+                workoutId: info.workoutId,
+                startDate: info.startDate,
+                totalSampleCount: info.totalSampleCount,
+                totalChunks: info.totalChunks
             )
             workouts.append(record)
             recordIndex = workouts.count - 1
@@ -109,13 +102,13 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         guard let idx = recordIndex else { return }
 
         // Guard against duplicate chunk
-        if workouts[idx].receivedChunks.contains(where: { $0.chunkIndex == chunkIndex }) {
-            logger.warning("Duplicate chunk \(chunkIndex) for workout \(workoutId)")
+        if workouts[idx].receivedChunks.contains(where: { $0.chunkIndex == info.chunkIndex }) {
+            logger.warning("Duplicate chunk \(info.chunkIndex) for workout \(info.workoutId)")
             return
         }
 
         workouts[idx].receivedChunks.append(
-            ChunkFile(chunkIndex: chunkIndex, fileName: fileName)
+            ChunkFile(chunkIndex: info.chunkIndex, fileName: info.fileName)
         )
 
         if workouts[idx].isComplete {
@@ -243,15 +236,16 @@ extension WatchConnectivityManager: WCSessionDelegate {
 
             let startDate = Date(timeIntervalSince1970: startInterval)
 
+            let info = ChunkTransferInfo(
+                workoutId: workoutId,
+                chunkIndex: chunkIndex,
+                totalChunks: totalChunks,
+                startDate: startDate,
+                totalSampleCount: totalSampleCount,
+                fileName: fileName
+            )
             Task { @MainActor in
-                self.processChunk(
-                    workoutId: workoutId,
-                    chunkIndex: chunkIndex,
-                    totalChunks: totalChunks,
-                    fileName: fileName,
-                    startDate: startDate,
-                    totalSampleCount: totalSampleCount
-                )
+                self.processChunk(info)
             }
         } catch {
             logger.error("Failed to save received file: \(error.localizedDescription)")

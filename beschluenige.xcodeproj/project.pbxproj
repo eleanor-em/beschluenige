@@ -71,9 +71,22 @@
 		FDBDF2812F2F5AB0008747A7 /* beschluenige Watch AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "beschluenige Watch AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		91AB0C55F6B20DC97EB50D74 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				"Data/ChunkTransferInfo.swift",
+			);
+			target = FDBDF2672F2F5AAF008747A7 /* beschluenige Watch App */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		FDBDF2472F2F5AAE008747A7 /* beschluenige */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				91AB0C55F6B20DC97EB50D74 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
+			);
 			path = beschluenige;
 			sourceTree = "<group>";
 		};

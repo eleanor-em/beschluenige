@@ -168,6 +168,34 @@ struct WorkoutStoreTests {
         #expect(store.workouts.count == 1)
     }
 
+    @Test func storeTransferProgressAddsToActiveTransfers() {
+        let (store, url) = makeStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let progress = Progress(totalUnitCount: 10)
+        store.storeTransferProgress(workoutId: "w1", progress: progress)
+
+        #expect(store.activeTransfers["w1"] === progress)
+    }
+
+    @Test func storeTransferProgressCleansUpOnCompletion() async {
+        let (store, url) = makeStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let progress = Progress(totalUnitCount: 1)
+        store.storeTransferProgress(workoutId: "w2", progress: progress)
+
+        #expect(store.activeTransfers["w2"] != nil)
+
+        progress.completedUnitCount = 1
+
+        // KVO cleanup dispatches to main queue asynchronously
+        await Task.yield()
+        try? await Task.sleep(for: .milliseconds(50))
+
+        #expect(store.activeTransfers["w2"] == nil)
+    }
+
     @Test func multipleWorkoutsRegistered() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
