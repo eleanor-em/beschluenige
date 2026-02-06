@@ -2,7 +2,7 @@ import Foundation
 
 struct Workout: Sendable {
     let startDate: Date
-    let workoutId: String
+    var workoutId: String
     var endDate: Date?
     var heartRateSamples: [HeartRateSample] = []
     var locationSamples: [LocationSample] = []

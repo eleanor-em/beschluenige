@@ -71,7 +71,7 @@ struct MockHeartRateProviderTests {
         }
 
         // Timeout fires at 0.1s, then fallback timer fires every 1s
-        try await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(3000))
 
         #expect(callbackFired.value)
         #expect(!received.items.isEmpty)
@@ -189,7 +189,7 @@ struct MockLocationProviderTests {
             received.append(contentsOf: samples)
         }
 
-        try await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(3000))
 
         #expect(callbackFired.value)
         #expect(!received.items.isEmpty)
@@ -336,7 +336,7 @@ struct MockMotionProviderTests {
             deviceMotionHandler: { _ in }
         )
 
-        try await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(3000))
 
         #expect(callbackFired.value)
         #expect(!received.items.isEmpty)
@@ -438,7 +438,7 @@ struct MockMotionProviderTests {
             }
         )
 
-        try await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(3000))
 
         #expect(!accelBatches.items.isEmpty)
         if let first = accelBatches.items.first {

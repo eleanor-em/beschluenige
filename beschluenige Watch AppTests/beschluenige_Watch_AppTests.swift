@@ -686,6 +686,7 @@ struct WorkoutManagerTests {
             motionProvider: stubMotion
         )
         try await manager.startRecording()
+        manager.currentWorkout!.workoutId = "write-failure-\(UUID())"
 
         stub.sendSamples([
             HeartRateSample(timestamp: Date(), beatsPerMinute: 110),
