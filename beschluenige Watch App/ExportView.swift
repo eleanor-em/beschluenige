@@ -47,9 +47,7 @@ struct ExportView: View {
                     .font(.caption)
 
                 switch transferState {
-                case .idle:
-                    Button("Send to iPhone", action: handleSendToPhone)
-                case .sending:
+                case .idle, .sending:
                     ProgressView("Sending...")
                 case .sent:
                     Label("Sent", systemImage: "checkmark.circle.fill")
@@ -72,6 +70,9 @@ struct ExportView: View {
             }
 
             Button("Done", action: handleDismiss)
+        }
+        .task {
+            handleSendToPhone()
         }
     }
 

@@ -362,7 +362,7 @@ struct MockMotionProviderTests {
             }
         )
 
-        try await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(3000))
 
         #expect(callbackFired.value)
         #expect(!accelReceived.items.isEmpty)

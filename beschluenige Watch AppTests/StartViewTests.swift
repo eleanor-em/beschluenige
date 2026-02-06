@@ -20,8 +20,7 @@ struct StartViewTests {
 
     @Test func bodyRendersWithoutWorkout() {
         let view = StartView(
-            workoutManager: makeManager(),
-            showExport: .constant(false)
+            workoutManager: makeManager()
         )
         _ = view.body
     }
@@ -30,8 +29,7 @@ struct StartViewTests {
         let manager = makeManager()
         try await manager.startRecording()
         let view = StartView(
-            workoutManager: manager,
-            showExport: .constant(false)
+            workoutManager: manager
         )
         _ = view.body
         manager.stopRecording()
@@ -40,7 +38,6 @@ struct StartViewTests {
     @Test func bodyRendersWithErrorMessage() {
         let view = StartView(
             workoutManager: makeManager(),
-            showExport: .constant(false),
             initialErrorMessage: "Something went wrong"
         )
         _ = view.body
@@ -49,8 +46,7 @@ struct StartViewTests {
     @Test func handleStartTappedSetsErrorOnFailure() async {
         let manager = makeManager(motionShouldThrow: true)
         let view = StartView(
-            workoutManager: manager,
-            showExport: .constant(false)
+            workoutManager: manager
         )
         await view.handleStartTapped()
     }

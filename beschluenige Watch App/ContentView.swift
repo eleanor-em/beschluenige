@@ -49,13 +49,17 @@ struct ContentView: View {
             } else {
                 StartView(
                     workoutManager: workoutManager,
-                    workoutStore: workoutStore,
-                    showExport: $showExport
+                    workoutStore: workoutStore
                 )
             }
         }
         .sheet(isPresented: $showExport) {
             ExportView(workoutManager: workoutManager, workoutStore: workoutStore)
+        }
+        .onChange(of: workoutManager.isRecording) { oldValue, newValue in
+            if oldValue && !newValue && workoutManager.currentWorkout != nil {
+                showExport = true
+            }
         }
         .task {
             await authorizeProviders()

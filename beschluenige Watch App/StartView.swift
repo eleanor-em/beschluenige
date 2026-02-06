@@ -4,7 +4,6 @@ import os
 struct StartView: View {
     var workoutManager: WorkoutManager
     var workoutStore: WorkoutStore
-    @Binding var showExport: Bool
     @State private var errorMessage: String?
 
     private let logger = Logger(
@@ -15,12 +14,10 @@ struct StartView: View {
     init(
         workoutManager: WorkoutManager,
         workoutStore: WorkoutStore = WorkoutStore(),
-        showExport: Binding<Bool>,
         initialErrorMessage: String? = nil
     ) {
         self.workoutManager = workoutManager
         self.workoutStore = workoutStore
-        self._showExport = showExport
         self._errorMessage = State(initialValue: initialErrorMessage)
     }
 
@@ -32,12 +29,6 @@ struct StartView: View {
                 Label("Start", systemImage: "heart.fill")
             }
             .tint(.green)
-
-            if workoutManager.currentWorkout != nil {
-                Button("Export Data") {
-                    showExport = true
-                }
-            }
 
             NavigationLink("Workouts") {
                 WorkoutListView(workoutStore: workoutStore)

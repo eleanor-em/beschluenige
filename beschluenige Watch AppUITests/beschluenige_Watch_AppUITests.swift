@@ -29,25 +29,49 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
     }
 
     @MainActor
-    func testStopButtonReturnsToStart() throws {
+    func testStopButtonOpensExport() throws {
         app.launch()
 
         app.buttons["Start"].tap()
         XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
 
         app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
+        // Export sheet auto-appears after stopping
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
     }
 
     @MainActor
-    func testExportButtonAppearsAfterRecording() throws {
+    func testExportAutoStartsAfterStop() throws {
         app.launch()
 
         app.buttons["Start"].tap()
         XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
 
         app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
+
+        // On simulator, WCSession is not activated, so transfer fails
+        // and falls back to local save
+        let fallbackText = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'Transfer failed'")
+        ).firstMatch
+        XCTAssertTrue(fallbackText.waitForExistence(timeout: 10))
+    }
+
+    @MainActor
+    func testExportDoneButtonDismisses() throws {
+        app.launch()
+
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+
+        app.buttons["Stop"].tap()
+        // Export sheet auto-appears
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
+
+        app.buttons["Done"].tap()
+
+        // Should return to main screen with Start button
+        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -69,63 +93,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
     }
 
     @MainActor
-    func testExportViewShowsButtons() throws {
-        app.launch()
-
-        app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
-
-        app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
-
-        app.buttons["Export Data"].tap()
-        XCTAssertTrue(app.buttons["Send to iPhone"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["Done"].exists)
-    }
-
-    @MainActor
-    func testExportSendFallsBackToLocalSave() throws {
-        app.launch()
-
-        app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
-
-        app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
-
-        app.buttons["Export Data"].tap()
-        XCTAssertTrue(app.buttons["Send to iPhone"].waitForExistence(timeout: 5))
-
-        app.buttons["Send to iPhone"].tap()
-
-        // On simulator, WCSession is not activated, so transfer fails
-        // and falls back to local save
-        let fallbackText = app.staticTexts.matching(
-            NSPredicate(format: "label CONTAINS 'Transfer failed'")
-        ).firstMatch
-        XCTAssertTrue(fallbackText.waitForExistence(timeout: 10))
-    }
-
-    @MainActor
-    func testExportDoneButtonDismisses() throws {
-        app.launch()
-
-        app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
-
-        app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
-
-        app.buttons["Export Data"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
-
-        app.buttons["Done"].tap()
-
-        // Should return to main screen with Export Data button
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
-    }
-
-    @MainActor
     func testWorkoutListShowsSeededWorkout() throws {
         app.launch()
 
@@ -135,19 +102,5 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         // The UI-testing path seeds one workout with 42 samples
         let samplesText = app.staticTexts["42 samples"]
         XCTAssertTrue(samplesText.waitForExistence(timeout: 5))
-    }
-
-    @MainActor
-    func testExportSheetPresents() throws {
-        app.launch()
-
-        app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
-
-        app.buttons["Stop"].tap()
-        XCTAssertTrue(app.buttons["Export Data"].waitForExistence(timeout: 5))
-
-        app.buttons["Export Data"].tap()
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 5))
     }
 }
