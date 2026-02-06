@@ -112,6 +112,51 @@ struct WorkoutStoreTests {
         #expect(!FileManager.default.fileExists(atPath: chunkURL.path))
     }
 
+    @Test func registerWorkoutLogsErrorForMissingFile() {
+        let (store, url) = makeStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let bogusURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nonexistent_\(UUID().uuidString).csv")
+
+        store.registerWorkout(
+            workoutId: "missing",
+            startDate: Date(),
+            chunkURLs: [bogusURL],
+            totalSampleCount: 1
+        )
+
+        // Workout is registered but file size falls back to 0
+        #expect(store.workouts.count == 1)
+        #expect(store.workouts[0].fileSizeBytes == 0)
+    }
+
+    @Test func deleteAllLogsErrorForAlreadyDeletedFiles() throws {
+        let (store, url) = makeStore()
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let documentsDir = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+        let chunkName = "test_already_deleted_\(UUID().uuidString).csv"
+        let chunkURL = documentsDir.appendingPathComponent(chunkName)
+        try Data("test".utf8).write(to: chunkURL)
+
+        store.registerWorkout(
+            workoutId: "del_err",
+            startDate: Date(),
+            chunkURLs: [chunkURL],
+            totalSampleCount: 1
+        )
+
+        // Delete the file before calling deleteAll so removeItem hits an error
+        try FileManager.default.removeItem(at: chunkURL)
+
+        store.deleteAll()
+
+        #expect(store.workouts.isEmpty)
+    }
+
     @Test func persistenceRoundTrip() {
         let persistenceURL = makeTempURL()
         defer { try? FileManager.default.removeItem(at: persistenceURL) }

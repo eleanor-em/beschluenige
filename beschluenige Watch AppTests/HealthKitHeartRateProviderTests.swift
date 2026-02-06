@@ -407,7 +407,7 @@ struct HealthKitHeartRateProviderTests {
             end: Date()
         )
 
-        provider.handleQueryResults([sample], unit: bpmUnit)
+        provider.handleQueryResults([sample], error: nil, unit: bpmUnit)
 
         #expect(received.count == 1)
         #expect(received[0].beatsPerMinute == 110.0)
@@ -421,7 +421,7 @@ struct HealthKitHeartRateProviderTests {
         }
 
         let bpmUnit = HKUnit.count().unitDivided(by: .minute())
-        provider.handleQueryResults(nil, unit: bpmUnit)
+        provider.handleQueryResults(nil, error: nil, unit: bpmUnit)
 
         #expect(!called)
     }
@@ -441,7 +441,7 @@ struct HealthKitHeartRateProviderTests {
             end: Date()
         )
 
-        provider.handleQueryUpdate([sample], unit: bpmUnit)
+        provider.handleQueryUpdate([sample], error: nil, unit: bpmUnit)
 
         #expect(received.count == 1)
         #expect(received[0].beatsPerMinute == 130.0)
@@ -455,7 +455,7 @@ struct HealthKitHeartRateProviderTests {
         }
 
         let bpmUnit = HKUnit.count().unitDivided(by: .minute())
-        provider.handleQueryUpdate(nil, unit: bpmUnit)
+        provider.handleQueryUpdate(nil, error: nil, unit: bpmUnit)
 
         #expect(!called)
     }
@@ -542,6 +542,24 @@ struct HealthKitHeartRateProviderTests {
             session,
             didFailWithError: NSError(domain: "test", code: 1)
         )
+    }
+
+    // MARK: - Query error logging
+
+    @Test func handleQueryResultsLogsError() {
+        let provider = HealthKitHeartRateProvider()
+        provider.setSampleHandler { _ in }
+
+        let error = NSError(domain: "TestDomain", code: 99)
+        provider.handleQueryResults(nil, error: error, unit: HKUnit.count().unitDivided(by: .minute()))
+    }
+
+    @Test func handleQueryUpdateLogsError() {
+        let provider = HealthKitHeartRateProvider()
+        provider.setSampleHandler { _ in }
+
+        let error = NSError(domain: "TestDomain", code: 99)
+        provider.handleQueryUpdate(nil, error: error, unit: HKUnit.count().unitDivided(by: .minute()))
     }
 
     // MARK: - startHeartRateQuery update handler coverage

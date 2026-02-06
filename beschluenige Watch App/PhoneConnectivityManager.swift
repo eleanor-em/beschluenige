@@ -45,10 +45,15 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         let parent = Progress(totalUnitCount: Int64(totalChunks))
         for (index, url) in chunkURLs.enumerated() {
             let fileSize: Int64 = {
-                guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                      let size = attrs[.size] as? Int64
-                else { return 0 }
-                return size
+                do {
+                    let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+                    return attrs[.size] as! Int64
+                } catch {
+                    logger.error(
+                        "Failed to read file attributes for \(url.lastPathComponent): \(error.localizedDescription)"
+                    )
+                    return 0
+                }
             }()
             let info = ChunkTransferInfo(
                 workoutId: workoutId,
@@ -76,6 +81,18 @@ extension PhoneConnectivityManager: WCSessionDelegate {
     ) {
         if let error {
             logger.error("WCSession activation failed: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated func session(
+        _ session: WCSession,
+        didFinish fileTransfer: WCSessionFileTransfer,
+        error: Error?
+    ) {
+        if let error {
+            logger.error(
+                "File transfer failed: \(error.localizedDescription)"
+            )
         }
     }
 }

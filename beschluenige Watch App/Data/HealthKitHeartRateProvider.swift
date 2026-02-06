@@ -148,12 +148,12 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
             predicate: predicate,
             anchor: nil,
             limit: HKObjectQueryNoLimit
-        ) { [weak self] _, samples, _, _, _ in
-            self?.handleQueryResults(samples, unit: bpmUnit)
+        ) { [weak self] _, samples, _, _, error in
+            self?.handleQueryResults(samples, error: error, unit: bpmUnit)
         }
 
-        query.updateHandler = { [weak self] _, samples, _, _, _ in
-            self?.handleQueryUpdate(samples, unit: bpmUnit)
+        query.updateHandler = { [weak self] _, samples, _, _, error in
+            self?.handleQueryUpdate(samples, error: error, unit: bpmUnit)
         }
 
         healthStore.execute(query)
@@ -161,13 +161,19 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         logger.info("Anchored HR query executing")
     }
 
-    func handleQueryResults(_ samples: [HKSample]?, unit: HKUnit) {
+    func handleQueryResults(_ samples: [HKSample]?, error: Error?, unit: HKUnit) {
+        if let error {
+            logger.error("HR query initial result error: \(error.localizedDescription)")
+        }
         let count = samples?.count ?? 0
         logger.info("Initial HR query returned \(count) samples")
         processSamples(samples, unit: unit)
     }
 
-    func handleQueryUpdate(_ samples: [HKSample]?, unit: HKUnit) {
+    func handleQueryUpdate(_ samples: [HKSample]?, error: Error?, unit: HKUnit) {
+        if let error {
+            logger.error("HR query update error: \(error.localizedDescription)")
+        }
         let count = samples?.count ?? 0
         logger.info("HR query update: \(count) new samples")
         processSamples(samples, unit: unit)

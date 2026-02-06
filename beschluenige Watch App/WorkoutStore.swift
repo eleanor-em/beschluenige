@@ -30,9 +30,15 @@ final class WorkoutStore: @unchecked Sendable {
         let fm = FileManager.default
         var totalBytes: Int64 = 0
         for url in chunkURLs {
-            if let attrs = try? fm.attributesOfItem(atPath: url.path),
-               let size = attrs[.size] as? Int64 {
-                totalBytes += size
+            do {
+                let attrs = try fm.attributesOfItem(atPath: url.path)
+                if let size = attrs[.size] as? Int64 {
+                    totalBytes += size
+                }
+            } catch {
+                logger.error(
+                    "Failed to read file attributes for \(url.lastPathComponent): \(error.localizedDescription)"
+                )
             }
         }
         let record = WatchWorkoutRecord(
@@ -80,7 +86,13 @@ final class WorkoutStore: @unchecked Sendable {
         for record in workouts {
             for fileName in record.chunkFileNames {
                 let url = documentsDir.appendingPathComponent(fileName)
-                try? fm.removeItem(at: url)
+                do {
+                    try fm.removeItem(at: url)
+                } catch {
+                    logger.error(
+                        "Failed to remove file \(fileName): \(error.localizedDescription)"
+                    )
+                }
             }
         }
         workouts.removeAll()

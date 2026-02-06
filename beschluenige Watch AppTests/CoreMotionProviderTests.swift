@@ -382,6 +382,24 @@ struct CoreMotionProviderTests {
             stream, delta: 0, handler: { _ in })
     }
 
+    @Test func iterateAccelStreamSuppressesCancellationError() async {
+        let stream = AsyncThrowingStream<[CMAccelerometerData], any Error> { cont in
+            cont.finish(throwing: CancellationError())
+        }
+
+        await CoreDeviceMotionProvider.iterateAccelStream(
+            stream, delta: 0, handler: { _ in })
+    }
+
+    @Test func iterateDMStreamSuppressesCancellationError() async {
+        let stream = AsyncThrowingStream<[CMDeviceMotion], any Error> { cont in
+            cont.finish(throwing: CancellationError())
+        }
+
+        await CoreDeviceMotionProvider.iterateDMStream(
+            stream, delta: 0, handler: { _ in })
+    }
+
     @Test func iterateAccelStreamDeliversMultipleBatches() async {
         var allSamples: [[AccelerometerSample]] = []
 

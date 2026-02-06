@@ -108,13 +108,13 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
                 let samples = convertAccelerometerBatch(batch, delta: delta)
                 handler(samples)
             }
+        } catch is CancellationError {
+            // Expected during stopMonitoring -- no log needed
         } catch {
-            if !Task.isCancelled {
-                Logger(
-                    subsystem: "net.lnor.beschluenige.watchkitapp",
-                    category: "CoreMotion"
-                ).error("Accelerometer stream error: \(error.localizedDescription)")
-            }
+            Logger(
+                subsystem: "net.lnor.beschluenige.watchkitapp",
+                category: "CoreMotion"
+            ).error("Accelerometer stream error: \(error.localizedDescription)")
         }
     }
 
@@ -128,13 +128,13 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
                 let samples = convertDeviceMotionBatch(batch, delta: delta)
                 handler(samples)
             }
+        } catch is CancellationError {
+            // Expected during stopMonitoring -- no log needed
         } catch {
-            if !Task.isCancelled {
-                Logger(
-                    subsystem: "net.lnor.beschluenige.watchkitapp",
-                    category: "CoreMotion"
-                ).error("Device motion stream error: \(error.localizedDescription)")
-            }
+            Logger(
+                subsystem: "net.lnor.beschluenige.watchkitapp",
+                category: "CoreMotion"
+            ).error("Device motion stream error: \(error.localizedDescription)")
         }
     }
 

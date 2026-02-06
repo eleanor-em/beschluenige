@@ -79,10 +79,22 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
     func deleteWorkout(_ record: WorkoutRecord) {
         if let mergedURL = record.mergedFileURL {
-            try? FileManager.default.removeItem(at: mergedURL)
+            do {
+                try FileManager.default.removeItem(at: mergedURL)
+            } catch {
+                logger.error(
+                    "Failed to remove merged file \(mergedURL.lastPathComponent): \(error.localizedDescription)"
+                )
+            }
         }
         for chunk in record.receivedChunks {
-            try? FileManager.default.removeItem(at: chunk.fileURL)
+            do {
+                try FileManager.default.removeItem(at: chunk.fileURL)
+            } catch {
+                logger.error(
+                    "Failed to remove chunk file \(chunk.fileName): \(error.localizedDescription)"
+                )
+            }
         }
         workouts.removeAll { $0.id == record.id }
         saveWorkouts()
@@ -160,7 +172,13 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
             // Delete individual chunk files
             for chunk in sorted {
-                try? FileManager.default.removeItem(at: chunk.fileURL)
+                do {
+                    try FileManager.default.removeItem(at: chunk.fileURL)
+                } catch {
+                    logger.error(
+                        "Failed to remove chunk file \(chunk.fileName): \(error.localizedDescription)"
+                    )
+                }
             }
             logger.info("Merged \(sorted.count) chunks into \(mergedName)")
         } catch {

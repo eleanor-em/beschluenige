@@ -140,6 +140,52 @@ struct PhoneConnectivityManagerTests {
         )
     }
 
+    @Test func sendChunksLogsErrorForMissingFile() {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let bogusURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("nonexistent_\(UUID().uuidString).csv")
+
+        let result = manager.sendChunks(
+            chunkURLs: [bogusURL],
+            workoutId: "2024-02-01_120000",
+            startDate: Date(),
+            totalSampleCount: 10
+        )
+
+        // sendChunk still fires (fileSize falls back to 0)
+        #expect(result != nil)
+        #expect(stub.sentFiles.count == 1)
+        let meta = stub.sentFiles[0].1
+        #expect(meta["chunkSizeBytes"] as? Int64 == 0)
+    }
+
+    @Test func delegateHandlesFileTransferWithError() {
+        let stub = StubConnectivitySession()
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let transfer = WCSessionFileTransfer()
+        manager.session(
+            WCSession.default,
+            didFinish: transfer,
+            error: NSError(domain: "test", code: 7)
+        )
+    }
+
+    @Test func delegateHandlesFileTransferWithoutError() {
+        let stub = StubConnectivitySession()
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let transfer = WCSessionFileTransfer()
+        manager.session(
+            WCSession.default,
+            didFinish: transfer,
+            error: nil
+        )
+    }
+
     @Test func delegateHandlesActivationWithError() {
         let stub = StubConnectivitySession()
         let manager = PhoneConnectivityManager(session: stub)
