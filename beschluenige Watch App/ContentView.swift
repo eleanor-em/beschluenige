@@ -3,7 +3,7 @@ import os
 
 struct ContentView: View {
     @State private var workoutManager: WorkoutManager
-    @State private var sessionStore: SessionStore
+    @State private var workoutStore: WorkoutStore
     @State private var showExport = false
 
     private let logger = Logger(
@@ -25,37 +25,37 @@ struct ContentView: View {
                 motionProvider: CoreDeviceMotionProvider()
             ))
         }
-        let store = SessionStore()
+        let store = WorkoutStore()
         if CommandLine.arguments.contains("--ui-testing") {
-            store.registerSession(
-                sessionId: "ui-test",
+            store.registerWorkout(
+                workoutId: "ui-test",
                 startDate: Date(),
                 chunkURLs: [],
                 totalSampleCount: 42
             )
         }
-        _sessionStore = State(initialValue: store)
+        _workoutStore = State(initialValue: store)
     }
 
-    init(workoutManager: WorkoutManager, sessionStore: SessionStore = SessionStore()) {
+    init(workoutManager: WorkoutManager, workoutStore: WorkoutStore = WorkoutStore()) {
         _workoutManager = State(initialValue: workoutManager)
-        _sessionStore = State(initialValue: sessionStore)
+        _workoutStore = State(initialValue: workoutStore)
     }
 
     var body: some View {
         NavigationStack {
             if workoutManager.isRecording {
-                RecordingView(workoutManager: workoutManager)
+                WorkoutView(workoutManager: workoutManager)
             } else {
                 StartView(
                     workoutManager: workoutManager,
-                    sessionStore: sessionStore,
+                    workoutStore: workoutStore,
                     showExport: $showExport
                 )
             }
         }
         .sheet(isPresented: $showExport) {
-            ExportView(workoutManager: workoutManager, sessionStore: sessionStore)
+            ExportView(workoutManager: workoutManager, workoutStore: workoutStore)
         }
         .task {
             await authorizeProviders()

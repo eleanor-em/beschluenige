@@ -51,7 +51,7 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
     }
 
     @MainActor
-    func testRecordingViewDisplaysHeartRateInfo() throws {
+    func testWorkoutViewDisplaysHeartRateInfo() throws {
         app.launch()
 
         app.buttons["Start"].tap()
@@ -126,13 +126,13 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
     }
 
     @MainActor
-    func testSessionListShowsSeededSession() throws {
+    func testWorkoutListShowsSeededWorkout() throws {
         app.launch()
 
-        XCTAssertTrue(app.buttons["Sessions"].waitForExistence(timeout: 5))
-        app.buttons["Sessions"].tap()
+        XCTAssertTrue(app.buttons["Workouts"].waitForExistence(timeout: 5))
+        app.buttons["Workouts"].tap()
 
-        // The UI-testing path seeds one session with 42 samples
+        // The UI-testing path seeds one workout with 42 samples
         let samplesText = app.staticTexts["42 samples"]
         XCTAssertTrue(samplesText.waitForExistence(timeout: 5))
     }

@@ -6,7 +6,7 @@ import os
 final class WatchConnectivityManager: NSObject, @unchecked Sendable {
     static let shared = WatchConnectivityManager()
 
-    var sessions: [SessionRecord] = []
+    var workouts: [WorkoutRecord] = []
 
     private let session = WCSession.default
     private let logger = Logger(
@@ -25,9 +25,9 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
     }
 
-    struct SessionRecord: Identifiable, Codable, Sendable {
+    struct WorkoutRecord: Identifiable, Codable, Sendable {
         let id: UUID
-        let sessionId: String
+        let workoutId: String
         let startDate: Date
         let totalSampleCount: Int
         let totalChunks: Int
@@ -44,18 +44,18 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
 
         var displayName: String {
-            let prefix = sessionId.hasPrefix("TEST_") ? "TEST_" : ""
-            return "\(prefix)session_\(sessionId)"
+            let prefix = workoutId.hasPrefix("TEST_") ? "TEST_" : ""
+            return "\(prefix)workout_\(workoutId)"
         }
 
         init(
-            sessionId: String,
+            workoutId: String,
             startDate: Date,
             totalSampleCount: Int,
             totalChunks: Int
         ) {
             self.id = UUID()
-            self.sessionId = sessionId
+            self.workoutId = workoutId
             self.startDate = startDate
             self.totalSampleCount = totalSampleCount
             self.totalChunks = totalChunks
@@ -71,62 +71,62 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         guard WCSession.isSupported() else { return }
         session.delegate = self
         session.activate()
-        loadSessions()
+        loadWorkouts()
     }
 
-    func deleteSession(_ record: SessionRecord) {
+    func deleteWorkout(_ record: WorkoutRecord) {
         if let mergedURL = record.mergedFileURL {
             try? FileManager.default.removeItem(at: mergedURL)
         }
         for chunk in record.receivedChunks {
             try? FileManager.default.removeItem(at: chunk.fileURL)
         }
-        sessions.removeAll { $0.id == record.id }
-        saveSessions()
+        workouts.removeAll { $0.id == record.id }
+        saveWorkouts()
     }
 
     func processChunk(
-        sessionId: String,
+        workoutId: String,
         chunkIndex: Int,
         totalChunks: Int,
         fileName: String,
         startDate: Date,
         totalSampleCount: Int
     ) {
-        var recordIndex = sessions.firstIndex(where: { $0.sessionId == sessionId })
+        var recordIndex = workouts.firstIndex(where: { $0.workoutId == workoutId })
 
         if recordIndex == nil {
-            let record = SessionRecord(
-                sessionId: sessionId,
+            let record = WorkoutRecord(
+                workoutId: workoutId,
                 startDate: startDate,
                 totalSampleCount: totalSampleCount,
                 totalChunks: totalChunks
             )
-            sessions.append(record)
-            recordIndex = sessions.count - 1
+            workouts.append(record)
+            recordIndex = workouts.count - 1
         }
 
         guard let idx = recordIndex else { return }
 
         // Guard against duplicate chunk
-        if sessions[idx].receivedChunks.contains(where: { $0.chunkIndex == chunkIndex }) {
-            logger.warning("Duplicate chunk \(chunkIndex) for session \(sessionId)")
+        if workouts[idx].receivedChunks.contains(where: { $0.chunkIndex == chunkIndex }) {
+            logger.warning("Duplicate chunk \(chunkIndex) for workout \(workoutId)")
             return
         }
 
-        sessions[idx].receivedChunks.append(
+        workouts[idx].receivedChunks.append(
             ChunkFile(chunkIndex: chunkIndex, fileName: fileName)
         )
 
-        if sessions[idx].isComplete {
+        if workouts[idx].isComplete {
             mergeChunks(at: idx)
         }
 
-        saveSessions()
+        saveWorkouts()
     }
 
     func mergeChunks(at index: Int) {
-        let record = sessions[index]
+        let record = workouts[index]
         let sorted = record.receivedChunks.sorted { $0.chunkIndex < $1.chunkIndex }
 
         var merged = Data()
@@ -150,7 +150,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             }
         }
 
-        let mergedName = "session_\(record.sessionId).csv"
+        let mergedName = "workout_\(record.workoutId).csv"
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
@@ -158,7 +158,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
         do {
             try merged.write(to: mergedURL)
-            sessions[index].mergedFileName = mergedName
+            workouts[index].mergedFileName = mergedName
 
             // Delete individual chunk files
             for chunk in sorted {
@@ -173,26 +173,26 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
     private func persistedFilesURL() -> URL {
         FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
-        ).first!.appendingPathComponent("sessions.json")
+        ).first!.appendingPathComponent("workouts.json")
     }
 
-    private func saveSessions() {
+    private func saveWorkouts() {
         do {
-            let data = try JSONEncoder().encode(sessions)
+            let data = try JSONEncoder().encode(workouts)
             try data.write(to: persistedFilesURL(), options: .atomic)
         } catch {
-            logger.error("Failed to persist sessions list: \(error.localizedDescription)")
+            logger.error("Failed to persist workouts list: \(error.localizedDescription)")
         }
     }
 
-    private func loadSessions() {
+    private func loadWorkouts() {
         let url = persistedFilesURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
             let data = try Data(contentsOf: url)
-            sessions = try JSONDecoder().decode([SessionRecord].self, from: data)
+            workouts = try JSONDecoder().decode([WorkoutRecord].self, from: data)
         } catch {
-            logger.error("Failed to load sessions list: \(error.localizedDescription)")
+            logger.error("Failed to load workouts list: \(error.localizedDescription)")
         }
     }
 }
@@ -223,7 +223,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
         metadata: [String: Any]?
     ) {
         let fileName = metadata?["fileName"] as? String ?? "unknown.csv"
-        let sessionId = metadata?["sessionId"] as? String ?? "unknown"
+        let workoutId = metadata?["workoutId"] as? String ?? "unknown"
         let chunkIndex = metadata?["chunkIndex"] as? Int ?? 0
         let totalChunks = metadata?["totalChunks"] as? Int ?? 1
         let totalSampleCount = metadata?["totalSampleCount"] as? Int ?? 0
@@ -245,7 +245,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
 
             Task { @MainActor in
                 self.processChunk(
-                    sessionId: sessionId,
+                    workoutId: workoutId,
                     chunkIndex: chunkIndex,
                     totalChunks: totalChunks,
                     fileName: fileName,

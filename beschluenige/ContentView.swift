@@ -5,7 +5,7 @@ import os
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
     @State private var healthAuthDenied = false
-    @State private var sessionToDelete: WatchConnectivityManager.SessionRecord?
+    @State private var workoutToDelete: WatchConnectivityManager.WorkoutRecord?
 
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige",
@@ -36,39 +36,39 @@ struct ContentView: View {
                     }
                 }
 
-                if connectivityManager.sessions.isEmpty {
+                if connectivityManager.workouts.isEmpty {
                     ContentUnavailableView(
-                        "No Recordings",
+                        "No Workouts",
                         systemImage: "heart.slash",
                         description: Text(
                             "Record heart rate data on your Apple Watch, then export it here."
                         )
                     )
                 } else {
-                    ForEach(connectivityManager.sessions) { record in
-                        sessionRow(record)
+                    ForEach(connectivityManager.workouts) { record in
+                        workoutRow(record)
                     }
                 }
             }
             .navigationTitle("beschluenige")
             .alert(
-                "Delete Recording",
+                "Delete Workout",
                 isPresented: Binding(
-                    get: { sessionToDelete != nil },
-                    set: { if !$0 { sessionToDelete = nil } }
+                    get: { workoutToDelete != nil },
+                    set: { if !$0 { workoutToDelete = nil } }
                 )
             ) {
                 Button("Delete", role: .destructive) {
-                    if let record = sessionToDelete {
-                        connectivityManager.deleteSession(record)
-                        sessionToDelete = nil
+                    if let record = workoutToDelete {
+                        connectivityManager.deleteWorkout(record)
+                        workoutToDelete = nil
                     }
                 }
                 Button("Cancel", role: .cancel) {
-                    sessionToDelete = nil
+                    workoutToDelete = nil
                 }
             } message: {
-                if let record = sessionToDelete {
+                if let record = workoutToDelete {
                     Text(
                         "Are you sure you want to delete"
                             + " \"\(record.displayName)\"? This cannot be undone."
@@ -82,15 +82,14 @@ struct ContentView: View {
     }
 
     @ViewBuilder
-    private func sessionRow(
-        _ record: WatchConnectivityManager.SessionRecord
+    private func workoutRow(
+        _ record: WatchConnectivityManager.WorkoutRecord
     ) -> some View {
         VStack(alignment: .leading) {
             Text(record.displayName)
                 .font(.headline)
             if record.isComplete {
-                let label = "\(record.totalSampleCount) samples"
-                (Text(label + " - ") + Text(record.startDate, style: .date))
+                Text("\(record.totalSampleCount) samples - \(record.startDate, style: .date)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -106,19 +105,19 @@ struct ContentView: View {
                 ShareLink(item: mergedURL)
             }
             Button(role: .destructive) {
-                sessionToDelete = record
+                workoutToDelete = record
             } label: {
                 Label("Delete", systemImage: "trash")
             }
         }
         .listRowBackground(
-            sessionToDelete?.id == record.id
+            workoutToDelete?.id == record.id
                 ? Color.red.opacity(0.2)
                 : nil
         )
         .swipeActions(edge: .trailing) {
             Button {
-                sessionToDelete = record
+                workoutToDelete = record
             } label: {
                 Label("Delete", systemImage: "trash")
             }

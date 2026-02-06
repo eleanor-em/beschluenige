@@ -18,7 +18,7 @@ struct StartViewTests {
         )
     }
 
-    @Test func bodyRendersWithoutSession() {
+    @Test func bodyRendersWithoutWorkout() {
         let view = StartView(
             workoutManager: makeManager(),
             showExport: .constant(false)
@@ -26,7 +26,7 @@ struct StartViewTests {
         _ = view.body
     }
 
-    @Test func bodyRendersWithSession() async throws {
+    @Test func bodyRendersWithWorkout() async throws {
         let manager = makeManager()
         try await manager.startRecording()
         let view = StartView(

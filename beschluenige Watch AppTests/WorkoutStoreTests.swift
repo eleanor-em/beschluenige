@@ -2,83 +2,83 @@ import Foundation
 import Testing
 @testable import beschluenige_Watch_App
 
-struct SessionStoreTests {
+struct WorkoutStoreTests {
 
     private func makeTempURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("test_\(UUID().uuidString).json")
     }
 
-    private func makeStore(url: URL? = nil) -> (SessionStore, URL) {
+    private func makeStore(url: URL? = nil) -> (WorkoutStore, URL) {
         let persistenceURL = url ?? makeTempURL()
-        let store = SessionStore(persistenceURL: persistenceURL)
+        let store = WorkoutStore(persistenceURL: persistenceURL)
         return (store, persistenceURL)
     }
 
-    @Test func registerSessionAddsRecord() {
+    @Test func registerWorkoutAddsRecord() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.registerSession(
-            sessionId: "2026-02-06_183000",
+        store.registerWorkout(
+            workoutId: "2026-02-06_183000",
             startDate: Date(timeIntervalSince1970: 1000),
             chunkURLs: [URL(fileURLWithPath: "/tmp/chunk_0.csv")],
             totalSampleCount: 42
         )
 
-        #expect(store.sessions.count == 1)
-        #expect(store.sessions[0].sessionId == "2026-02-06_183000")
-        #expect(store.sessions[0].chunkCount == 1)
-        #expect(store.sessions[0].totalSampleCount == 42)
-        #expect(store.sessions[0].transferred == false)
-        #expect(store.sessions[0].chunkFileNames == ["chunk_0.csv"])
-        #expect(store.sessions[0].displayName == "session_2026-02-06_183000")
+        #expect(store.workouts.count == 1)
+        #expect(store.workouts[0].workoutId == "2026-02-06_183000")
+        #expect(store.workouts[0].chunkCount == 1)
+        #expect(store.workouts[0].totalSampleCount == 42)
+        #expect(store.workouts[0].transferred == false)
+        #expect(store.workouts[0].chunkFileNames == ["chunk_0.csv"])
+        #expect(store.workouts[0].displayName == "workout_2026-02-06_183000")
     }
 
-    @Test func duplicateSessionIdIsIgnored() {
+    @Test func duplicateWorkoutIdIsIgnored() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.registerSession(
-            sessionId: "dup",
+        store.registerWorkout(
+            workoutId: "dup",
             startDate: Date(),
             chunkURLs: [URL(fileURLWithPath: "/tmp/a.csv")],
             totalSampleCount: 10
         )
-        store.registerSession(
-            sessionId: "dup",
+        store.registerWorkout(
+            workoutId: "dup",
             startDate: Date(),
             chunkURLs: [URL(fileURLWithPath: "/tmp/b.csv")],
             totalSampleCount: 20
         )
 
-        #expect(store.sessions.count == 1)
-        #expect(store.sessions[0].totalSampleCount == 10)
+        #expect(store.workouts.count == 1)
+        #expect(store.workouts[0].totalSampleCount == 10)
     }
 
     @Test func markTransferredSetsFlag() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.registerSession(
-            sessionId: "s1",
+        store.registerWorkout(
+            workoutId: "s1",
             startDate: Date(),
             chunkURLs: [],
             totalSampleCount: 5
         )
 
-        store.markTransferred(sessionId: "s1")
+        store.markTransferred(workoutId: "s1")
 
-        #expect(store.sessions[0].transferred == true)
+        #expect(store.workouts[0].transferred == true)
     }
 
-    @Test func markTransferredIgnoresUnknownSession() {
+    @Test func markTransferredIgnoresUnknownWorkout() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.markTransferred(sessionId: "nonexistent")
+        store.markTransferred(workoutId: "nonexistent")
 
-        #expect(store.sessions.isEmpty)
+        #expect(store.workouts.isEmpty)
     }
 
     @Test func deleteAllRemovesFilesAndClears() throws {
@@ -93,8 +93,8 @@ struct SessionStoreTests {
         let chunkURL = documentsDir.appendingPathComponent(chunkName)
         try Data("test".utf8).write(to: chunkURL)
 
-        store.registerSession(
-            sessionId: "del1",
+        store.registerWorkout(
+            workoutId: "del1",
             startDate: Date(),
             chunkURLs: [chunkURL],
             totalSampleCount: 1
@@ -102,7 +102,7 @@ struct SessionStoreTests {
 
         store.deleteAll()
 
-        #expect(store.sessions.isEmpty)
+        #expect(store.workouts.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: chunkURL.path))
     }
 
@@ -110,27 +110,27 @@ struct SessionStoreTests {
         let persistenceURL = makeTempURL()
         defer { try? FileManager.default.removeItem(at: persistenceURL) }
 
-        let store1 = SessionStore(persistenceURL: persistenceURL)
-        store1.registerSession(
-            sessionId: "rt1",
+        let store1 = WorkoutStore(persistenceURL: persistenceURL)
+        store1.registerWorkout(
+            workoutId: "rt1",
             startDate: Date(timeIntervalSince1970: 5000),
             chunkURLs: [URL(fileURLWithPath: "/tmp/c.csv")],
             totalSampleCount: 99
         )
-        store1.markTransferred(sessionId: "rt1")
+        store1.markTransferred(workoutId: "rt1")
 
-        let store2 = SessionStore(persistenceURL: persistenceURL)
+        let store2 = WorkoutStore(persistenceURL: persistenceURL)
 
-        #expect(store2.sessions.count == 1)
-        #expect(store2.sessions[0].sessionId == "rt1")
-        #expect(store2.sessions[0].transferred == true)
-        #expect(store2.sessions[0].totalSampleCount == 99)
+        #expect(store2.workouts.count == 1)
+        #expect(store2.workouts[0].workoutId == "rt1")
+        #expect(store2.workouts[0].transferred == true)
+        #expect(store2.workouts[0].totalSampleCount == 99)
     }
 
     @Test func initWithNonexistentFileStartsEmpty() {
         let url = makeTempURL()
-        let store = SessionStore(persistenceURL: url)
-        #expect(store.sessions.isEmpty)
+        let store = WorkoutStore(persistenceURL: url)
+        #expect(store.workouts.isEmpty)
     }
 
     @Test func deleteAllOnEmptyStoreIsNoOp() {
@@ -138,7 +138,7 @@ struct SessionStoreTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         store.deleteAll()
-        #expect(store.sessions.isEmpty)
+        #expect(store.workouts.isEmpty)
     }
 
     @Test func loadCorruptedFileStartsEmpty() throws {
@@ -146,8 +146,8 @@ struct SessionStoreTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         try Data("not valid json".utf8).write(to: url)
-        let store = SessionStore(persistenceURL: url)
-        #expect(store.sessions.isEmpty)
+        let store = WorkoutStore(persistenceURL: url)
+        #expect(store.workouts.isEmpty)
     }
 
     @Test func saveToUnwritablePathDoesNotCrash() {
@@ -157,36 +157,36 @@ struct SessionStoreTests {
         try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dirURL) }
 
-        let store = SessionStore(persistenceURL: dirURL)
-        store.registerSession(
-            sessionId: "x",
+        let store = WorkoutStore(persistenceURL: dirURL)
+        store.registerWorkout(
+            workoutId: "x",
             startDate: Date(),
             chunkURLs: [],
             totalSampleCount: 1
         )
         // Should not crash; the error is logged
-        #expect(store.sessions.count == 1)
+        #expect(store.workouts.count == 1)
     }
 
-    @Test func multipleSessionsRegistered() {
+    @Test func multipleWorkoutsRegistered() {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.registerSession(
-            sessionId: "a",
+        store.registerWorkout(
+            workoutId: "a",
             startDate: Date(),
             chunkURLs: [],
             totalSampleCount: 1
         )
-        store.registerSession(
-            sessionId: "b",
+        store.registerWorkout(
+            workoutId: "b",
             startDate: Date(),
             chunkURLs: [],
             totalSampleCount: 2
         )
 
-        #expect(store.sessions.count == 2)
-        #expect(store.sessions[0].sessionId == "a")
-        #expect(store.sessions[1].sessionId == "b")
+        #expect(store.workouts.count == 2)
+        #expect(store.workouts[0].workoutId == "a")
+        #expect(store.workouts[1].workoutId == "b")
     }
 }

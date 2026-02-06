@@ -21,14 +21,14 @@ struct ContentViewTests {
         _ = ContentView(workoutManager: makeManager())
     }
 
-    @Test func bodyShowsRecordingViewWhenRecording() async throws {
+    @Test func bodyShowsWorkoutViewWhenRecording() async throws {
         let manager = makeManager()
         try await manager.startRecording()
         _ = ContentView(workoutManager: manager)
         manager.stopRecording()
     }
 
-    @Test func recordingViewRendersWithHeartRate() async throws {
+    @Test func workoutViewRendersWithHeartRate() async throws {
         let hrStub = StubHeartRateProvider()
         let manager = WorkoutManager(
             provider: hrStub,
@@ -39,7 +39,7 @@ struct ContentViewTests {
         hrStub.sendSamples([HeartRateSample(timestamp: Date(), beatsPerMinute: 120)])
         await Task.yield()
 
-        _ = RecordingView(workoutManager: manager)
+        _ = WorkoutView(workoutManager: manager)
         manager.stopRecording()
     }
 

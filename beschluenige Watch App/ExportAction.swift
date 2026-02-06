@@ -5,38 +5,38 @@ enum TransferState: Sendable {
 }
 
 struct ExportAction {
-    var sendChunksViaPhone: ([URL], String, Date, Int) -> Bool = { chunkURLs, sessionId, startDate, totalSampleCount in
+    var sendChunksViaPhone: ([URL], String, Date, Int) -> Bool = { chunkURLs, workoutId, startDate, totalSampleCount in
         PhoneConnectivityManager.shared.sendChunks(
             chunkURLs: chunkURLs,
-            sessionId: sessionId,
+            workoutId: workoutId,
             startDate: startDate,
             totalSampleCount: totalSampleCount
         )
     }
-    var finalizeSession: (inout RecordingSession) throws -> [URL] = { session in
-        try session.finalizeChunks()
+    var finalizeWorkout: (inout Workout) throws -> [URL] = { workout in
+        try workout.finalizeChunks()
     }
-    var registerSession: (String, Date, [URL], Int) -> Void = { _, _, _, _ in }
+    var registerWorkout: (String, Date, [URL], Int) -> Void = { _, _, _, _ in }
     var markTransferred: (String) -> Void = { _ in }
 
-    func execute(session: inout RecordingSession) -> TransferState {
+    func execute(workout: inout Workout) -> TransferState {
         let chunkURLs: [URL]
         do {
-            chunkURLs = try finalizeSession(&session)
+            chunkURLs = try finalizeWorkout(&workout)
         } catch {
             return .failed(error.localizedDescription)
         }
         guard !chunkURLs.isEmpty else { return .failed("No data to export") }
 
-        registerSession(
-            session.sessionId, session.startDate, chunkURLs, session.cumulativeSampleCount
+        registerWorkout(
+            workout.workoutId, workout.startDate, chunkURLs, workout.cumulativeSampleCount
         )
 
         let success = sendChunksViaPhone(
-            chunkURLs, session.sessionId, session.startDate, session.cumulativeSampleCount
+            chunkURLs, workout.workoutId, workout.startDate, workout.cumulativeSampleCount
         )
         if success {
-            markTransferred(session.sessionId)
+            markTransferred(workout.workoutId)
             return .sent
         }
         return .savedLocally(chunkURLs)

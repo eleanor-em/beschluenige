@@ -29,7 +29,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
     func sendChunk(
         fileURL: URL,
-        sessionId: String,
+        workoutId: String,
         chunkIndex: Int,
         totalChunks: Int,
         startDate: Date,
@@ -39,7 +39,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
         let metadata: [String: Any] = [
             "fileName": fileURL.lastPathComponent,
-            "sessionId": sessionId,
+            "workoutId": workoutId,
             "chunkIndex": chunkIndex,
             "totalChunks": totalChunks,
             "startDate": startDate.timeIntervalSince1970,
@@ -52,7 +52,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
     func sendChunks(
         chunkURLs: [URL],
-        sessionId: String,
+        workoutId: String,
         startDate: Date,
         totalSampleCount: Int
     ) -> Bool {
@@ -63,7 +63,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         for (index, url) in chunkURLs.enumerated() {
             let sent = sendChunk(
                 fileURL: url,
-                sessionId: sessionId,
+                workoutId: workoutId,
                 chunkIndex: index,
                 totalChunks: totalChunks,
                 startDate: startDate,

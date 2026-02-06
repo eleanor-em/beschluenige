@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct RecordingView: View {
+struct WorkoutView: View {
     var workoutManager: WorkoutManager
 
     var body: some View {

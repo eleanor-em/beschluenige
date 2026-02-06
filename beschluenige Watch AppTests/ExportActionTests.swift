@@ -7,15 +7,15 @@ struct ExportActionTests {
     @Test func executeReturnsSentOnSuccess() {
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in true }
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
 
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000000))
-        let result = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000000))
+        let result = action.execute(workout: &workout)
         if case .sent = result {
             // pass
         } else {
@@ -23,7 +23,7 @@ struct ExportActionTests {
         }
 
         // Clean up
-        for url in session.chunkURLs {
+        for url in workout.chunkURLs {
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -31,15 +31,15 @@ struct ExportActionTests {
     @Test func executeReturnsSavedLocallyOnTransferFailure() throws {
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in false }
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
 
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000001))
-        let result = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000001))
+        let result = action.execute(workout: &workout)
 
         if case .savedLocally(let urls) = result {
             #expect(!urls.isEmpty)
@@ -54,14 +54,14 @@ struct ExportActionTests {
 
     @Test func executeReturnsFailedWhenFinalizeThrows() {
         var action = ExportAction()
-        action.finalizeSession = { _ in
+        action.finalizeWorkout = { _ in
             throw NSError(domain: "test", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "disk full",
             ])
         }
 
-        var session = RecordingSession(startDate: Date())
-        let result = action.execute(session: &session)
+        var workout = Workout(startDate: Date())
+        let result = action.execute(workout: &workout)
         if case .failed(let message) = result {
             #expect(message == "disk full")
         } else {
@@ -71,10 +71,10 @@ struct ExportActionTests {
 
     @Test func executeReturnsFailedWhenNoChunks() {
         var action = ExportAction()
-        action.finalizeSession = { _ in [] }
+        action.finalizeWorkout = { _ in [] }
 
-        var session = RecordingSession(startDate: Date())
-        let result = action.execute(session: &session)
+        var workout = Workout(startDate: Date())
+        let result = action.execute(workout: &workout)
         if case .failed(let message) = result {
             #expect(message == "No data to export")
         } else {
@@ -82,24 +82,24 @@ struct ExportActionTests {
         }
     }
 
-    @Test func executeCallsRegisterSessionAfterFinalize() {
+    @Test func executeCallsRegisterWorkoutAfterFinalize() {
         var registered = false
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in true }
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
-        action.registerSession = { _, _, _, _ in registered = true }
+        action.registerWorkout = { _, _, _, _ in registered = true }
 
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000010))
-        _ = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000010))
+        _ = action.execute(workout: &workout)
 
         #expect(registered)
 
-        for url in session.chunkURLs {
+        for url in workout.chunkURLs {
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -108,20 +108,20 @@ struct ExportActionTests {
         var marked = false
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in true }
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
         action.markTransferred = { _ in marked = true }
 
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000011))
-        _ = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000011))
+        _ = action.execute(workout: &workout)
 
         #expect(marked)
 
-        for url in session.chunkURLs {
+        for url in workout.chunkURLs {
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -130,20 +130,20 @@ struct ExportActionTests {
         var marked = false
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in false }
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
         action.markTransferred = { _ in marked = true }
 
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000012))
-        _ = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000012))
+        _ = action.execute(workout: &workout)
 
         #expect(!marked)
 
-        for url in session.chunkURLs {
+        for url in workout.chunkURLs {
             try? FileManager.default.removeItem(at: url)
         }
     }
@@ -151,15 +151,15 @@ struct ExportActionTests {
     @Test func executeDoesNotCallRegisterWhenFinalizeThrows() {
         var registered = false
         var action = ExportAction()
-        action.finalizeSession = { _ in
+        action.finalizeWorkout = { _ in
             throw NSError(domain: "test", code: 1, userInfo: [
                 NSLocalizedDescriptionKey: "disk full",
             ])
         }
-        action.registerSession = { _, _, _, _ in registered = true }
+        action.registerWorkout = { _, _, _, _ in registered = true }
 
-        var session = RecordingSession(startDate: Date())
-        _ = action.execute(session: &session)
+        var workout = Workout(startDate: Date())
+        _ = action.execute(workout: &workout)
 
         #expect(!registered)
     }
@@ -172,14 +172,14 @@ struct ExportActionTests {
         return
         #else
         var action = ExportAction()
-        action.finalizeSession = { session in
-            session.heartRateSamples = [
+        action.finalizeWorkout = { workout in
+            workout.heartRateSamples = [
                 HeartRateSample(timestamp: Date(), beatsPerMinute: 100),
             ]
-            return try session.finalizeChunks()
+            return try workout.finalizeChunks()
         }
-        var session = RecordingSession(startDate: Date(timeIntervalSince1970: 2000000002))
-        let result = action.execute(session: &session)
+        var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000002))
+        let result = action.execute(workout: &workout)
 
         // Should not be .sent (WCSession not activated on simulator)
         if case .sent = result {
@@ -187,7 +187,7 @@ struct ExportActionTests {
         }
 
         // Clean up
-        for url in session.chunkURLs {
+        for url in workout.chunkURLs {
             try? FileManager.default.removeItem(at: url)
         }
         #endif

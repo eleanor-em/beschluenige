@@ -2,48 +2,48 @@ import Foundation
 import os
 
 @Observable
-final class SessionStore: @unchecked Sendable {
-    var sessions: [WatchSessionRecord] = []
+final class WorkoutStore: @unchecked Sendable {
+    var workouts: [WatchWorkoutRecord] = []
 
     private let persistenceURL: URL
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "SessionStore"
+        category: "WorkoutStore"
     )
 
     init(persistenceURL: URL? = nil) {
         self.persistenceURL = persistenceURL ?? FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
-        ).first!.appendingPathComponent("watch_sessions.json")
-        loadSessions()
+        ).first!.appendingPathComponent("watch_workouts.json")
+        loadWorkouts()
     }
 
-    func registerSession(
-        sessionId: String,
+    func registerWorkout(
+        workoutId: String,
         startDate: Date,
         chunkURLs: [URL],
         totalSampleCount: Int
     ) {
-        guard !sessions.contains(where: { $0.sessionId == sessionId }) else { return }
-        let record = WatchSessionRecord(
+        guard !workouts.contains(where: { $0.workoutId == workoutId }) else { return }
+        let record = WatchWorkoutRecord(
             id: UUID(),
-            sessionId: sessionId,
+            workoutId: workoutId,
             startDate: startDate,
             chunkCount: chunkURLs.count,
             totalSampleCount: totalSampleCount,
             transferred: false,
             chunkFileNames: chunkURLs.map { $0.lastPathComponent }
         )
-        sessions.append(record)
-        saveSessions()
+        workouts.append(record)
+        saveWorkouts()
     }
 
-    func markTransferred(sessionId: String) {
-        guard let index = sessions.firstIndex(where: { $0.sessionId == sessionId }) else {
+    func markTransferred(workoutId: String) {
+        guard let index = workouts.firstIndex(where: { $0.workoutId == workoutId }) else {
             return
         }
-        sessions[index].transferred = true
-        saveSessions()
+        workouts[index].transferred = true
+        saveWorkouts()
     }
 
     func deleteAll() {
@@ -51,32 +51,32 @@ final class SessionStore: @unchecked Sendable {
         let documentsDir = fm.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
-        for record in sessions {
+        for record in workouts {
             for fileName in record.chunkFileNames {
                 let url = documentsDir.appendingPathComponent(fileName)
                 try? fm.removeItem(at: url)
             }
         }
-        sessions.removeAll()
-        saveSessions()
+        workouts.removeAll()
+        saveWorkouts()
     }
 
-    private func saveSessions() {
+    private func saveWorkouts() {
         do {
-            let data = try JSONEncoder().encode(sessions)
+            let data = try JSONEncoder().encode(workouts)
             try data.write(to: persistenceURL, options: .atomic)
         } catch {
-            logger.error("Failed to persist watch sessions: \(error.localizedDescription)")
+            logger.error("Failed to persist watch workouts: \(error.localizedDescription)")
         }
     }
 
-    private func loadSessions() {
+    private func loadWorkouts() {
         guard FileManager.default.fileExists(atPath: persistenceURL.path) else { return }
         do {
             let data = try Data(contentsOf: persistenceURL)
-            sessions = try JSONDecoder().decode([WatchSessionRecord].self, from: data)
+            workouts = try JSONDecoder().decode([WatchWorkoutRecord].self, from: data)
         } catch {
-            logger.error("Failed to load watch sessions: \(error.localizedDescription)")
+            logger.error("Failed to load watch workouts: \(error.localizedDescription)")
         }
     }
 }

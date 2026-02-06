@@ -62,13 +62,13 @@ struct HealthKitHeartRateProviderTests {
         provider.stopMonitoring()
     }
 
-    @Test func stopMonitoringWithActiveSession() throws {
+    @Test func stopMonitoringWithActiveWorkout() throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()
         config.activityType = .other
         let store = HKHealthStore()
         let session = try HKWorkoutSession(healthStore: store, configuration: config)
-        provider.setWorkoutSession(session)
+        provider.setHKWorkout(session)
 
         provider.stopMonitoring()
     }
@@ -92,7 +92,7 @@ struct HealthKitHeartRateProviderTests {
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.storeSessionRunningContinuation(continuation)
+                provider.storeWorkoutRunningContinuation(continuation)
             }
         }
 
@@ -143,7 +143,7 @@ struct HealthKitHeartRateProviderTests {
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.storeSessionRunningContinuation(continuation)
+                provider.storeWorkoutRunningContinuation(continuation)
             }
         }
 
@@ -169,7 +169,7 @@ struct HealthKitHeartRateProviderTests {
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.storeSessionRunningContinuation(continuation)
+                provider.storeWorkoutRunningContinuation(continuation)
             }
         }
 
@@ -200,7 +200,7 @@ struct HealthKitHeartRateProviderTests {
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.storeSessionRunningContinuation(continuation)
+                provider.storeWorkoutRunningContinuation(continuation)
             }
         }
 
@@ -235,7 +235,7 @@ struct HealthKitHeartRateProviderTests {
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.storeSessionRunningContinuation(continuation)
+                provider.storeWorkoutRunningContinuation(continuation)
             }
         }
 
@@ -302,46 +302,46 @@ struct HealthKitHeartRateProviderTests {
         #expect(!called)
     }
 
-    // MARK: - cleanupLeftoverSession
+    // MARK: - cleanupLeftoverWorkout
 
-    @Test func cleanupLeftoverSessionEndsAndNilsSession() throws {
+    @Test func cleanupLeftoverWorkoutEndsAndNilsWorkout() throws {
         let provider = HealthKitHeartRateProvider()
 
         let config = HKWorkoutConfiguration()
         config.activityType = .other
         let store = HKHealthStore()
         let session = try HKWorkoutSession(healthStore: store, configuration: config)
-        provider.setWorkoutSession(session)
+        provider.setHKWorkout(session)
 
-        provider.cleanupLeftoverSession()
+        provider.cleanupLeftoverWorkout()
 
-        // Calling cleanup again should be a no-op (session is nil)
-        provider.cleanupLeftoverSession()
+        // Calling cleanup again should be a no-op (hkWorkout is nil)
+        provider.cleanupLeftoverWorkout()
     }
 
-    @Test func cleanupLeftoverSessionNoOpWhenNil() {
+    @Test func cleanupLeftoverWorkoutIsNoOpWhenNil() {
         let provider = HealthKitHeartRateProvider()
-        // No session set, should not crash
-        provider.cleanupLeftoverSession()
+        // No workout set, should not crash
+        provider.cleanupLeftoverWorkout()
     }
 
-    // MARK: - handleSessionState
+    // MARK: - handleWorkoutState
 
-    @Test func handleSessionStateRunningResumesImmediately() async throws {
+    @Test func handleWorkoutStateRunningResumesImmediately() async throws {
         let provider = HealthKitHeartRateProvider()
 
         try await withCheckedThrowingContinuation { continuation in
-            provider.handleSessionState(.running, continuation: continuation)
+            provider.handleWorkoutState(.running, continuation: continuation)
         }
         // If we reach here, the continuation resumed successfully
     }
 
-    @Test func handleSessionStateNotStartedStoresContinuation() async throws {
+    @Test func handleWorkoutStateNotStartedStoresContinuation() async throws {
         let provider = HealthKitHeartRateProvider()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.handleSessionState(.notStarted, continuation: continuation)
+                provider.handleWorkoutState(.notStarted, continuation: continuation)
             }
         }
 
@@ -363,12 +363,12 @@ struct HealthKitHeartRateProviderTests {
         try await task.value
     }
 
-    @Test func handleSessionStatePreparedStoresContinuation() async throws {
+    @Test func handleWorkoutStatePreparedStoresContinuation() async throws {
         let provider = HealthKitHeartRateProvider()
 
         let task = Task<Void, Error> {
             try await withCheckedThrowingContinuation { continuation in
-                provider.handleSessionState(.prepared, continuation: continuation)
+                provider.handleWorkoutState(.prepared, continuation: continuation)
             }
         }
 
@@ -585,7 +585,7 @@ struct HealthKitHeartRateProviderTests {
             // Allow the initial query handler to fire
             try await Task.sleep(for: .milliseconds(500))
         } catch {
-            // Expected on simulator -- HealthKit session may not fully initialize
+            // Expected on simulator -- HealthKit workout may not fully initialize
         }
         provider.stopMonitoring()
     }

@@ -9,37 +9,37 @@ private let testDMSample = DeviceMotionSample(
     heading: 90.0
 )
 
-struct RecordingSessionTests {
+struct WorkoutTests {
 
     @Test func sampleCount() {
-        var session = RecordingSession(startDate: Date())
-        #expect(session.sampleCount == 0)
+        var workout = Workout(startDate: Date())
+        #expect(workout.sampleCount == 0)
 
-        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
-        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 130))
-        #expect(session.sampleCount == 2)
+        workout.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
+        workout.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 130))
+        #expect(workout.sampleCount == 2)
     }
 
     @Test func totalSampleCount() {
-        var session = RecordingSession(startDate: Date())
-        #expect(session.totalSampleCount == 0)
+        var workout = Workout(startDate: Date())
+        #expect(workout.totalSampleCount == 0)
 
-        session.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
-        session.locationSamples.append(LocationSample(
+        workout.heartRateSamples.append(HeartRateSample(timestamp: Date(), beatsPerMinute: 120))
+        workout.locationSamples.append(LocationSample(
             timestamp: Date(), latitude: 43.0, longitude: -79.0,
             altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
             speed: 3.0, course: 90.0
         ))
-        session.accelerometerSamples.append(AccelerometerSample(
+        workout.accelerometerSamples.append(AccelerometerSample(
             timestamp: Date(), x: 0.1, y: -0.2, z: 0.98
         ))
-        session.deviceMotionSamples.append(testDMSample)
-        #expect(session.totalSampleCount == 4)
+        workout.deviceMotionSamples.append(testDMSample)
+        #expect(workout.totalSampleCount == 4)
     }
 
     @Test func csvHeader() {
-        let session = RecordingSession(startDate: Date())
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let workout = Workout(startDate: Date())
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
         #expect(lines.count == 1)
         #expect(
@@ -55,13 +55,13 @@ struct RecordingSessionTests {
         let t1 = Date(timeIntervalSince1970: 1000)
         let t2 = Date(timeIntervalSince1970: 1005)
 
-        var session = RecordingSession(startDate: t1)
-        session.heartRateSamples = [
+        var workout = Workout(startDate: t1)
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t1, beatsPerMinute: 72),
             HeartRateSample(timestamp: t2, beatsPerMinute: 148),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 3)
@@ -73,8 +73,8 @@ struct RecordingSessionTests {
     @Test func csvContainsLocationSamples() {
         let t = Date(timeIntervalSince1970: 2000)
 
-        var session = RecordingSession(startDate: t)
-        session.locationSamples = [
+        var workout = Workout(startDate: t)
+        workout.locationSamples = [
             LocationSample(
                 timestamp: t, latitude: 43.65, longitude: -79.38,
                 altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
@@ -82,7 +82,7 @@ struct RecordingSessionTests {
             ),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 2)
@@ -93,12 +93,12 @@ struct RecordingSessionTests {
     @Test func csvContainsAccelerometerSamples() {
         let t = Date(timeIntervalSince1970: 3000)
 
-        var session = RecordingSession(startDate: t)
-        session.accelerometerSamples = [
+        var workout = Workout(startDate: t)
+        workout.accelerometerSamples = [
             AccelerometerSample(timestamp: t, x: 0.01, y: -0.02, z: 0.98),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
         let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
 
@@ -113,8 +113,8 @@ struct RecordingSessionTests {
     @Test func csvContainsDeviceMotionSamples() {
         let t = Date(timeIntervalSince1970: 4000)
 
-        var session = RecordingSession(startDate: t)
-        session.deviceMotionSamples = [
+        var workout = Workout(startDate: t)
+        workout.deviceMotionSamples = [
             DeviceMotionSample(
                 timestamp: t, roll: 0.1, pitch: 0.2, yaw: 0.3,
                 rotationRateX: 1.0, rotationRateY: 2.0, rotationRateZ: 3.0,
@@ -123,7 +123,7 @@ struct RecordingSessionTests {
             ),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
         let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
 
@@ -143,14 +143,14 @@ struct RecordingSessionTests {
         let t2 = Date(timeIntervalSince1970: 1001)
         let t3 = Date(timeIntervalSince1970: 1002)
 
-        var session = RecordingSession(startDate: t1)
-        session.accelerometerSamples = [
+        var workout = Workout(startDate: t1)
+        workout.accelerometerSamples = [
             AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
         ]
-        session.heartRateSamples = [
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t1, beatsPerMinute: 100),
         ]
-        session.locationSamples = [
+        workout.locationSamples = [
             LocationSample(
                 timestamp: t2, latitude: 43.0, longitude: -79.0,
                 altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
@@ -158,7 +158,7 @@ struct RecordingSessionTests {
             ),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
 
         #expect(lines.count == 4)
@@ -169,12 +169,12 @@ struct RecordingSessionTests {
 
     @Test func csvTimestampPrecision() {
         let t = Date(timeIntervalSince1970: 1706812345.678)
-        var session = RecordingSession(startDate: t)
-        session.heartRateSamples = [
+        var workout = Workout(startDate: t)
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 90),
         ]
 
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         let lines = csv.split(separator: "\n")
         let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
 
@@ -182,48 +182,48 @@ struct RecordingSessionTests {
         #expect(abs(timestamp - 1706812345.678) < 0.001)
     }
 
-    @Test func csvEmptySession() {
-        let session = RecordingSession(startDate: Date())
-        let csv = String(data: session.csvData(), encoding: .utf8)!
+    @Test func csvEmptyWorkout() {
+        let workout = Workout(startDate: Date())
+        let csv = String(data: workout.csvData(), encoding: .utf8)!
         #expect(csv.split(separator: "\n").count == 1)
     }
 
     @Test func endDateTracked() {
-        var session = RecordingSession(startDate: Date())
-        #expect(session.endDate == nil)
+        var workout = Workout(startDate: Date())
+        #expect(workout.endDate == nil)
 
         let end = Date()
-        session.endDate = end
-        #expect(session.endDate == end)
+        workout.endDate = end
+        #expect(workout.endDate == end)
     }
 
-    @Test func sessionIdDerivedFromStartDate() {
+    @Test func workoutIdDerivedFromStartDate() {
         let t = Date(timeIntervalSince1970: 1706812345)
-        let session = RecordingSession(startDate: t)
+        let workout = Workout(startDate: t)
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        #expect(session.sessionId == formatter.string(from: t))
+        #expect(workout.workoutId == formatter.string(from: t))
     }
 
     @Test func flushChunkWritesCsvAndClearsArrays() throws {
         let t = Date(timeIntervalSince1970: 1706812345)
-        var session = RecordingSession(startDate: t)
-        session.heartRateSamples = [
+        var workout = Workout(startDate: t)
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 100),
         ]
-        session.accelerometerSamples = [
+        workout.accelerometerSamples = [
             AccelerometerSample(timestamp: t, x: 0.1, y: 0.2, z: 0.3),
         ]
 
-        let url = try session.flushChunk()
+        let url = try workout.flushChunk()
 
         #expect(url != nil)
-        #expect(session.heartRateSamples.isEmpty)
-        #expect(session.accelerometerSamples.isEmpty)
-        #expect(session.locationSamples.isEmpty)
-        #expect(session.deviceMotionSamples.isEmpty)
-        #expect(session.nextChunkIndex == 1)
-        #expect(session.chunkURLs.count == 1)
+        #expect(workout.heartRateSamples.isEmpty)
+        #expect(workout.accelerometerSamples.isEmpty)
+        #expect(workout.locationSamples.isEmpty)
+        #expect(workout.deviceMotionSamples.isEmpty)
+        #expect(workout.nextChunkIndex == 1)
+        #expect(workout.chunkURLs.count == 1)
 
         let content = try String(contentsOf: url!, encoding: .utf8)
         #expect(content.contains("H,"))
@@ -234,33 +234,33 @@ struct RecordingSessionTests {
     }
 
     @Test func flushChunkReturnsNilWhenEmpty() throws {
-        var session = RecordingSession(startDate: Date())
+        var workout = Workout(startDate: Date())
 
-        let url = try session.flushChunk()
+        let url = try workout.flushChunk()
 
         #expect(url == nil)
-        #expect(session.nextChunkIndex == 0)
-        #expect(session.chunkURLs.isEmpty)
+        #expect(workout.nextChunkIndex == 0)
+        #expect(workout.chunkURLs.isEmpty)
     }
 
     @Test func flushChunkIncrementsIndex() throws {
         let t = Date(timeIntervalSince1970: 1706899999)
-        var session = RecordingSession(startDate: t)
+        var workout = Workout(startDate: t)
 
-        session.heartRateSamples = [
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 80),
         ]
-        let url0 = try session.flushChunk()
+        let url0 = try workout.flushChunk()
 
-        session.heartRateSamples = [
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 90),
         ]
-        let url1 = try session.flushChunk()
+        let url1 = try workout.flushChunk()
 
         #expect(url0!.lastPathComponent.contains("_0.csv"))
         #expect(url1!.lastPathComponent.contains("_1.csv"))
-        #expect(session.nextChunkIndex == 2)
-        #expect(session.chunkURLs.count == 2)
+        #expect(workout.nextChunkIndex == 2)
+        #expect(workout.chunkURLs.count == 2)
 
         try FileManager.default.removeItem(at: url0!)
         try FileManager.default.removeItem(at: url1!)
@@ -268,23 +268,23 @@ struct RecordingSessionTests {
 
     @Test func finalizeChunksFlushesRemaining() throws {
         let t = Date(timeIntervalSince1970: 1706800000)
-        var session = RecordingSession(startDate: t)
+        var workout = Workout(startDate: t)
 
         // First chunk
-        session.heartRateSamples = [
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 80),
         ]
-        _ = try session.flushChunk()
+        _ = try workout.flushChunk()
 
         // Remaining samples
-        session.heartRateSamples = [
+        workout.heartRateSamples = [
             HeartRateSample(timestamp: t, beatsPerMinute: 90),
         ]
 
-        let urls = try session.finalizeChunks()
+        let urls = try workout.finalizeChunks()
 
         #expect(urls.count == 2)
-        #expect(session.heartRateSamples.isEmpty)
+        #expect(workout.heartRateSamples.isEmpty)
 
         for url in urls {
             try FileManager.default.removeItem(at: url)
@@ -295,7 +295,7 @@ struct RecordingSessionTests {
 @MainActor
 struct WorkoutManagerTests {
 
-    @Test func startRecordingCreatesSession() async throws {
+    @Test func startRecordingCreatesWorkout() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
@@ -308,8 +308,8 @@ struct WorkoutManagerTests {
         try await manager.startRecording()
 
         #expect(manager.isRecording)
-        #expect(manager.currentSession != nil)
-        #expect(manager.currentSession?.sampleCount == 0)
+        #expect(manager.currentWorkout != nil)
+        #expect(manager.currentWorkout?.sampleCount == 0)
 
         manager.stopRecording()
     }
@@ -328,7 +328,7 @@ struct WorkoutManagerTests {
         manager.stopRecording()
 
         #expect(!manager.isRecording)
-        #expect(manager.currentSession?.endDate != nil)
+        #expect(manager.currentWorkout?.endDate != nil)
     }
 
     @Test func samplesFlowThroughProvider() async throws {
@@ -351,7 +351,7 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.currentSession?.sampleCount == 2)
+        #expect(manager.currentWorkout?.sampleCount == 2)
         #expect(manager.currentHeartRate == 130)
         #expect(manager.lastSampleDate == t.addingTimeInterval(1))
 
@@ -380,7 +380,7 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.currentSession?.locationSamples.count == 1)
+        #expect(manager.currentWorkout?.locationSamples.count == 1)
         #expect(manager.locationSampleCount == 1)
 
         manager.stopRecording()
@@ -405,7 +405,7 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.currentSession?.accelerometerSamples.count == 2)
+        #expect(manager.currentWorkout?.accelerometerSamples.count == 2)
         #expect(manager.accelerometerSampleCount == 2)
 
         manager.stopRecording()
@@ -427,7 +427,7 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.currentSession?.deviceMotionSamples.count == 2)
+        #expect(manager.currentWorkout?.deviceMotionSamples.count == 2)
         #expect(manager.deviceMotionSampleCount == 2)
 
         manager.stopRecording()
@@ -474,7 +474,7 @@ struct WorkoutManagerTests {
         await Task.yield()
 
         // After stop, samples are flushed to disk, so in-memory count is 0
-        #expect(manager.currentSession?.sampleCount == 0)
+        #expect(manager.currentWorkout?.sampleCount == 0)
     }
 
     @Test func stopClearsLocationSampleDelivery() async throws {
@@ -582,10 +582,10 @@ struct WorkoutManagerTests {
         manager.flushCurrentChunk()
 
         // In-memory arrays should be empty
-        #expect(manager.currentSession?.heartRateSamples.isEmpty == true)
-        #expect(manager.currentSession?.locationSamples.isEmpty == true)
-        #expect(manager.currentSession?.accelerometerSamples.isEmpty == true)
-        #expect(manager.currentSession?.deviceMotionSamples.isEmpty == true)
+        #expect(manager.currentWorkout?.heartRateSamples.isEmpty == true)
+        #expect(manager.currentWorkout?.locationSamples.isEmpty == true)
+        #expect(manager.currentWorkout?.accelerometerSamples.isEmpty == true)
+        #expect(manager.currentWorkout?.deviceMotionSamples.isEmpty == true)
 
         // But cumulative counts are preserved
         #expect(manager.heartRateSampleCount == 1)
@@ -606,8 +606,8 @@ struct WorkoutManagerTests {
         manager.stopRecording()
 
         // Clean up chunk files
-        if let session = manager.currentSession {
-            for url in session.chunkURLs {
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
                 try? FileManager.default.removeItem(at: url)
             }
         }
@@ -631,16 +631,15 @@ struct WorkoutManagerTests {
         ])
         await Task.yield()
 
-        // Let the RunLoop fire the timer so the Timer closure is covered
-        RunLoop.current.run(until: Date(timeIntervalSinceNow: 0.1))
-        await Task.yield()
+        // Let the timer fire so the Timer closure is covered
+        try await Task.sleep(for: .milliseconds(100))
 
-        #expect(manager.currentSession?.chunkURLs.count ?? 0 >= 1)
+        #expect(manager.currentWorkout?.chunkURLs.count ?? 0 >= 1)
 
         manager.stopRecording()
 
-        if let session = manager.currentSession {
-            for url in session.chunkURLs {
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
                 try? FileManager.default.removeItem(at: url)
             }
         }
@@ -666,12 +665,12 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        // isRecording is now false, but currentSession is non-nil.
+        // isRecording is now false, but currentWorkout is non-nil.
         // This covers the right side of the || guard in flushCurrentChunk.
         manager.flushCurrentChunk()
 
-        if let session = manager.currentSession {
-            for url in session.chunkURLs {
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
                 try? FileManager.default.removeItem(at: url)
             }
         }
@@ -698,10 +697,10 @@ struct WorkoutManagerTests {
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
-        let sessionId = manager.currentSession!.sessionId
-        let chunkIndex = manager.currentSession!.nextChunkIndex
+        let workoutId = manager.currentWorkout!.workoutId
+        let chunkIndex = manager.currentWorkout!.nextChunkIndex
         let blocker = documentsDir.appendingPathComponent(
-            "TEST_session_\(sessionId)_\(chunkIndex).csv"
+            "TEST_workout_\(workoutId)_\(chunkIndex).csv"
         )
         // Create a subdirectory inside so the path is a directory, not a file
         let sub = blocker.appendingPathComponent("x")
@@ -714,8 +713,8 @@ struct WorkoutManagerTests {
         // Clean up
         try? FileManager.default.removeItem(at: blocker)
         manager.stopRecording()
-        if let session = manager.currentSession {
-            for url in session.chunkURLs {
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
                 try? FileManager.default.removeItem(at: url)
             }
         }
@@ -741,11 +740,11 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        #expect(manager.currentSession?.chunkURLs.isEmpty == false)
+        #expect(manager.currentWorkout?.chunkURLs.isEmpty == false)
 
         // Clean up chunk files
-        if let session = manager.currentSession {
-            for url in session.chunkURLs {
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
                 try? FileManager.default.removeItem(at: url)
             }
         }

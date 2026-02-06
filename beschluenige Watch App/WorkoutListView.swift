@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct SessionRowView: View {
-    var record: WatchSessionRecord
+struct WorkoutRowView: View {
+    var record: WatchWorkoutRecord
 
     var body: some View {
         HStack {
@@ -24,15 +24,15 @@ struct SessionRowView: View {
     }
 }
 
-struct SessionListView: View {
-    var sessionStore: SessionStore
+struct WorkoutListView: View {
+    var workoutStore: WorkoutStore
     @State private var showDeleteConfirmation: Bool
 
     init(
-        sessionStore: SessionStore,
+        workoutStore: WorkoutStore,
         initialShowDeleteConfirmation: Bool = false
     ) {
-        self.sessionStore = sessionStore
+        self.workoutStore = workoutStore
         self._showDeleteConfirmation = State(initialValue: initialShowDeleteConfirmation)
     }
 
@@ -41,7 +41,7 @@ struct SessionListView: View {
     }
 
     func handleDeleteAll() {
-        sessionStore.deleteAll()
+        workoutStore.deleteAll()
     }
 
     func requestDeleteConfirmation() {
@@ -52,11 +52,11 @@ struct SessionListView: View {
 
     var body: some View {
         List {
-            if sessionStore.sessions.isEmpty {
-                Text("No sessions")
+            if workoutStore.workouts.isEmpty {
+                Text("No workouts")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(sessionStore.sessions, content: SessionRowView.init(record:))
+                ForEach(workoutStore.workouts, content: WorkoutRowView.init(record:))
             }
 
             Section {
@@ -64,11 +64,11 @@ struct SessionListView: View {
                     Text("Delete All")
                         .frame(maxWidth: .infinity)
                 }
-                .disabled(sessionStore.sessions.isEmpty)
+                .disabled(workoutStore.workouts.isEmpty)
             }
         }
-        .navigationTitle("Sessions")
-        .alert("Delete All Sessions?", isPresented: $showDeleteConfirmation) {
+        .navigationTitle("Workouts")
+        .alert("Delete All Workouts?", isPresented: $showDeleteConfirmation) {
             Button("Delete", role: .destructive, action: handleDeleteAll)
             Button("Cancel", role: .cancel, action: handleCancelDelete)
         } message: {

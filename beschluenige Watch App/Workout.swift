@@ -1,8 +1,8 @@
 import Foundation
 
-struct RecordingSession: Sendable {
+struct Workout: Sendable {
     let startDate: Date
-    let sessionId: String
+    let workoutId: String
     var endDate: Date?
     var heartRateSamples: [HeartRateSample] = []
     var locationSamples: [LocationSample] = []
@@ -16,7 +16,7 @@ struct RecordingSession: Sendable {
         self.startDate = startDate
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd_HHmmss"
-        self.sessionId = formatter.string(from: startDate)
+        self.workoutId = formatter.string(from: startDate)
     }
 
     var sampleCount: Int { heartRateSamples.count }
@@ -93,7 +93,7 @@ struct RecordingSession: Sendable {
 
         let data = csvData()
         let prefix = isRunningTests ? "TEST_" : ""
-        let fileName = "\(prefix)session_\(sessionId)_\(nextChunkIndex).csv"
+        let fileName = "\(prefix)workout_\(workoutId)_\(nextChunkIndex).csv"
 
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask

@@ -16,20 +16,20 @@ struct ExportView: View {
         workoutManager: WorkoutManager,
         exportAction: ExportAction = ExportAction(),
         initialTransferState: TransferState = .idle,
-        sessionStore: SessionStore = SessionStore()
+        workoutStore: WorkoutStore = WorkoutStore()
     ) {
         self.workoutManager = workoutManager
         var action = exportAction
-        action.registerSession = { sessionId, startDate, chunkURLs, totalSampleCount in
-            sessionStore.registerSession(
-                sessionId: sessionId,
+        action.registerWorkout = { workoutId, startDate, chunkURLs, totalSampleCount in
+            workoutStore.registerWorkout(
+                workoutId: workoutId,
                 startDate: startDate,
                 chunkURLs: chunkURLs,
                 totalSampleCount: totalSampleCount
             )
         }
-        action.markTransferred = { sessionId in
-            sessionStore.markTransferred(sessionId: sessionId)
+        action.markTransferred = { workoutId in
+            workoutStore.markTransferred(workoutId: workoutId)
         }
         self.exportAction = action
         self._transferState = State(initialValue: initialTransferState)
@@ -37,13 +37,13 @@ struct ExportView: View {
 
     var body: some View {
         VStack(spacing: 12) {
-            if workoutManager.currentSession != nil {
+            if workoutManager.currentWorkout != nil {
                 let totalSamples = workoutManager.heartRateSampleCount
                     + workoutManager.locationSampleCount
                     + workoutManager.accelerometerSampleCount
                     + workoutManager.deviceMotionSampleCount
                 Text("\(totalSamples) samples")
-                Text(workoutManager.currentSession!.startDate, style: .date)
+                Text(workoutManager.currentWorkout!.startDate, style: .date)
                     .font(.caption)
 
                 switch transferState {
@@ -68,7 +68,7 @@ struct ExportView: View {
                         .foregroundStyle(.red)
                 }
             } else {
-                Text("No recording data")
+                Text("No workout data")
             }
 
             Button("Done", action: handleDismiss)
@@ -76,7 +76,7 @@ struct ExportView: View {
     }
 
     func handleSendToPhone() {
-        guard workoutManager.currentSession != nil else { return }
+        guard workoutManager.currentWorkout != nil else { return }
         sendToPhone()
     }
 
@@ -86,7 +86,7 @@ struct ExportView: View {
 
     func sendToPhone() {
         transferState = .sending
-        let result = exportAction.execute(session: &workoutManager.currentSession!)
+        let result = exportAction.execute(workout: &workoutManager.currentWorkout!)
         transferState = result
         if case .savedLocally(let urls) = result {
             logger.info("Chunks saved locally: \(urls.count) file(s)")

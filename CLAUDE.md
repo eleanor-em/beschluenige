@@ -80,7 +80,9 @@ Key files:
 ### Orchestration
 
 - `WorkoutManager.swift` -- manages recording state, receives samples from all three providers
-- `RecordingSession.swift` -- holds all sample arrays, serializes to unified CSV
+- `Workout.swift` -- holds all sample arrays, serializes to unified CSV
+
+**Naming:** "Workout" refers to a recorded data session (samples, chunks, export). "Session" is reserved for WCSession/connectivity (`ConnectivitySession`, `PhoneConnectivityManager.session`).
 
 ## Data export
 

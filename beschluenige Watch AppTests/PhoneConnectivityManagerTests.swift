@@ -17,7 +17,7 @@ struct PhoneConnectivityManagerTests {
 
         let result = manager.sendChunks(
             chunkURLs: [tempURL],
-            sessionId: "2024-02-01_120000",
+            workoutId: "2024-02-01_120000",
             startDate: Date(),
             totalSampleCount: 10
         )
@@ -33,7 +33,7 @@ struct PhoneConnectivityManagerTests {
 
         let result = manager.sendChunks(
             chunkURLs: [],
-            sessionId: "2024-02-01_120000",
+            workoutId: "2024-02-01_120000",
             startDate: Date(),
             totalSampleCount: 0
         )
@@ -55,7 +55,7 @@ struct PhoneConnectivityManagerTests {
         let startDate = Date(timeIntervalSince1970: 1706812345)
         let result = manager.sendChunks(
             chunkURLs: [url1, url2],
-            sessionId: "2024-02-01_120000",
+            workoutId: "2024-02-01_120000",
             startDate: startDate,
             totalSampleCount: 42
         )
@@ -67,7 +67,7 @@ struct PhoneConnectivityManagerTests {
         let meta0 = stub.sentFiles[0].1
         #expect(meta0["chunkIndex"] as? Int == 0)
         #expect(meta0["totalChunks"] as? Int == 2)
-        #expect(meta0["sessionId"] as? String == "2024-02-01_120000")
+        #expect(meta0["workoutId"] as? String == "2024-02-01_120000")
         #expect(meta0["totalSampleCount"] as? Int == 42)
         #expect(meta0["startDate"] as? TimeInterval == startDate.timeIntervalSince1970)
 
@@ -91,7 +91,7 @@ struct PhoneConnectivityManagerTests {
 
         let result = manager.sendChunk(
             fileURL: tempURL,
-            sessionId: "test",
+            workoutId: "test",
             chunkIndex: 0,
             totalChunks: 1,
             startDate: Date(),

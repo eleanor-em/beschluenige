@@ -6,7 +6,7 @@ final class WorkoutManager {
     var isRecording = false
     var currentHeartRate: Double = 0
     var lastSampleDate: Date?
-    var currentSession: RecordingSession?
+    var currentWorkout: Workout?
     var heartRateSampleCount: Int = 0
     var locationSampleCount: Int = 0
     var accelerometerSampleCount: Int = 0
@@ -43,7 +43,7 @@ final class WorkoutManager {
     }
 
     func startRecording() async throws {
-        currentSession = RecordingSession(startDate: Date())
+        currentWorkout = Workout(startDate: Date())
         currentHeartRate = 0
         lastSampleDate = nil
         heartRateSampleCount = 0
@@ -104,37 +104,37 @@ final class WorkoutManager {
 
         flushCurrentChunk()
 
-        currentSession?.cumulativeSampleCount =
+        currentWorkout?.cumulativeSampleCount =
             cumulativeHeartRateCount + cumulativeLocationCount
             + cumulativeAccelerometerCount + cumulativeDeviceMotionCount
 
-        currentSession?.endDate = Date()
+        currentWorkout?.endDate = Date()
         isRecording = false
     }
 
     func flushCurrentChunk() {
-        guard isRecording || currentSession != nil else { return }
-        guard currentSession != nil else { return }
+        guard isRecording || currentWorkout != nil else { return }
+        guard currentWorkout != nil else { return }
 
-        cumulativeHeartRateCount += currentSession!.heartRateSamples.count
-        cumulativeLocationCount += currentSession!.locationSamples.count
-        cumulativeAccelerometerCount += currentSession!.accelerometerSamples.count
-        cumulativeDeviceMotionCount += currentSession!.deviceMotionSamples.count
+        cumulativeHeartRateCount += currentWorkout!.heartRateSamples.count
+        cumulativeLocationCount += currentWorkout!.locationSamples.count
+        cumulativeAccelerometerCount += currentWorkout!.accelerometerSamples.count
+        cumulativeDeviceMotionCount += currentWorkout!.deviceMotionSamples.count
 
         do {
-            if let url = try currentSession!.flushChunk() {
+            if let url = try currentWorkout!.flushChunk() {
                 logger.info("Flushed chunk to \(url.lastPathComponent)")
             }
         } catch {
             logger.error("Failed to flush chunk: \(error.localizedDescription)")
         }
 
-        heartRateSampleCount = cumulativeHeartRateCount + currentSession!.heartRateSamples.count
-        locationSampleCount = cumulativeLocationCount + currentSession!.locationSamples.count
+        heartRateSampleCount = cumulativeHeartRateCount + currentWorkout!.heartRateSamples.count
+        locationSampleCount = cumulativeLocationCount + currentWorkout!.locationSamples.count
         accelerometerSampleCount =
-            cumulativeAccelerometerCount + currentSession!.accelerometerSamples.count
+            cumulativeAccelerometerCount + currentWorkout!.accelerometerSamples.count
         deviceMotionSampleCount =
-            cumulativeDeviceMotionCount + currentSession!.deviceMotionSamples.count
+            cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
     }
 
     private func processHeartRateSamples(_ samples: [HeartRateSample]) {
@@ -142,9 +142,9 @@ final class WorkoutManager {
             logger.error("processSamples(): not currently recording")
             return
         }
-        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
-        currentSession!.heartRateSamples.append(contentsOf: samples)
-        heartRateSampleCount = cumulativeHeartRateCount + currentSession!.heartRateSamples.count
+        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
+        currentWorkout!.heartRateSamples.append(contentsOf: samples)
+        heartRateSampleCount = cumulativeHeartRateCount + currentWorkout!.heartRateSamples.count
         if let last = samples.last {
             currentHeartRate = last.beatsPerMinute
             lastSampleDate = last.timestamp
@@ -156,9 +156,9 @@ final class WorkoutManager {
             logger.error("processLocationSamples(): not currently recording")
             return
         }
-        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
-        currentSession!.locationSamples.append(contentsOf: samples)
-        locationSampleCount = cumulativeLocationCount + currentSession!.locationSamples.count
+        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
+        currentWorkout!.locationSamples.append(contentsOf: samples)
+        locationSampleCount = cumulativeLocationCount + currentWorkout!.locationSamples.count
     }
 
     private func processAccelerometerSamples(_ samples: [AccelerometerSample]) {
@@ -166,10 +166,10 @@ final class WorkoutManager {
             logger.error("processAccelerometerSamples(): not currently recording")
             return
         }
-        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
-        currentSession!.accelerometerSamples.append(contentsOf: samples)
+        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
+        currentWorkout!.accelerometerSamples.append(contentsOf: samples)
         accelerometerSampleCount =
-            cumulativeAccelerometerCount + currentSession!.accelerometerSamples.count
+            cumulativeAccelerometerCount + currentWorkout!.accelerometerSamples.count
     }
 
     private func processDeviceMotionSamples(_ samples: [DeviceMotionSample]) {
@@ -177,9 +177,9 @@ final class WorkoutManager {
             logger.error("processDeviceMotionSamples(): not currently recording")
             return
         }
-        assertExcludeCoverage(currentSession != nil, "isRecording implies currentSession != nil")
-        currentSession!.deviceMotionSamples.append(contentsOf: samples)
+        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
+        currentWorkout!.deviceMotionSamples.append(contentsOf: samples)
         deviceMotionSampleCount =
-            cumulativeDeviceMotionCount + currentSession!.deviceMotionSamples.count
+            cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
     }
 }
