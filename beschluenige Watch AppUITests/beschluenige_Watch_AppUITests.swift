@@ -44,7 +44,9 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
     func testExportAutoStartsAfterStop() throws {
         app.launch()
 
-        app.buttons["Start"].tap()
+        let startButton = app.buttons["Start"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
+        startButton.tap()
         XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
 
         app.buttons["Stop"].tap()

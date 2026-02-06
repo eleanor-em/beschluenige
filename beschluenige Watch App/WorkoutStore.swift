@@ -30,8 +30,9 @@ final class WorkoutStore: @unchecked Sendable {
         let fm = FileManager.default
         var totalBytes: Int64 = 0
         for url in chunkURLs {
-            if let attrs = try? fm.attributesOfItem(atPath: url.path) {
-                totalBytes += (attrs[.size] as? Int64) ?? 0
+            if let attrs = try? fm.attributesOfItem(atPath: url.path),
+               let size = attrs[.size] as? Int64 {
+                totalBytes += size
             }
         }
         let record = WatchWorkoutRecord(

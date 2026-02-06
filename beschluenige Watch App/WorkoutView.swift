@@ -37,7 +37,11 @@ struct WorkoutView: View {
                 Text(
                     "\(workoutManager.heartRateSampleCount) H"
                         + " / \(workoutManager.locationSampleCount) G"
-                        + " / \(workoutManager.accelerometerSampleCount.roundedWithAbbreviations) A"
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                Text(
+                    "\(workoutManager.accelerometerSampleCount.roundedWithAbbreviations) A"
                         + " / \(workoutManager.deviceMotionSampleCount.roundedWithAbbreviations) M"
                 )
                 .font(.caption2)

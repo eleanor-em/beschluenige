@@ -2,6 +2,41 @@ import Foundation
 
 let isRunningTests = ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
 
+enum SampleGenerators {
+    static func generateAccelBatch(
+        at now: Date, count: Int = 100
+    ) -> [AccelerometerSample] {
+        (0..<count).map { i in
+            AccelerometerSample(
+                timestamp: now.addingTimeInterval(Double(i) * 0.01),
+                x: Double.random(in: -2...2),
+                y: Double.random(in: -2...2),
+                z: Double.random(in: -1...1) + 1.0
+            )
+        }
+    }
+
+    static func generateDeviceMotionBatch(
+        at now: Date, count: Int = 100
+    ) -> [DeviceMotionSample] {
+        (0..<count).map { i in
+            DeviceMotionSample(
+                timestamp: now.addingTimeInterval(Double(i) * 0.01),
+                roll: Double.random(in: -.pi...(.pi)),
+                pitch: Double.random(in: -.pi / 2...(.pi / 2)),
+                yaw: Double.random(in: -.pi...(.pi)),
+                rotationRateX: Double.random(in: -5...5),
+                rotationRateY: Double.random(in: -5...5),
+                rotationRateZ: Double.random(in: -5...5),
+                userAccelerationX: Double.random(in: -2...2),
+                userAccelerationY: Double.random(in: -2...2),
+                userAccelerationZ: Double.random(in: -2...2),
+                heading: Double.random(in: 0...360)
+            )
+        }
+    }
+}
+
 final class UITestHeartRateProvider: HeartRateProvider, @unchecked Sendable {
     private var timer: Timer?
 
@@ -67,32 +102,8 @@ final class UITestMotionProvider: DeviceMotionProvider, @unchecked Sendable {
     ) throws {
         let timer = Timer(timeInterval: 1, repeats: true) { _ in
             let now = Date()
-            var accelSamples: [AccelerometerSample] = []
-            var dmSamples: [DeviceMotionSample] = []
-            for i in 0..<100 {
-                let t = now.addingTimeInterval(Double(i) * 0.01)
-                accelSamples.append(AccelerometerSample(
-                    timestamp: t,
-                    x: Double.random(in: -2...2),
-                    y: Double.random(in: -2...2),
-                    z: Double.random(in: -1...1) + 1.0
-                ))
-                dmSamples.append(DeviceMotionSample(
-                    timestamp: t,
-                    roll: Double.random(in: -.pi...(.pi)),
-                    pitch: Double.random(in: -.pi / 2...(.pi / 2)),
-                    yaw: Double.random(in: -.pi...(.pi)),
-                    rotationRateX: Double.random(in: -5...5),
-                    rotationRateY: Double.random(in: -5...5),
-                    rotationRateZ: Double.random(in: -5...5),
-                    userAccelerationX: Double.random(in: -2...2),
-                    userAccelerationY: Double.random(in: -2...2),
-                    userAccelerationZ: Double.random(in: -2...2),
-                    heading: Double.random(in: 0...360)
-                ))
-            }
-            accelerometerHandler(accelSamples)
-            deviceMotionHandler(dmSamples)
+            accelerometerHandler(SampleGenerators.generateAccelBatch(at: now))
+            deviceMotionHandler(SampleGenerators.generateDeviceMotionBatch(at: now))
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
