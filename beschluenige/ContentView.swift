@@ -102,6 +102,7 @@ struct ContentView: View {
                     + " chunks - \(sizeStr)"
                 Text(chunkLabel)
                     .font(.caption)
+
             }
         }
         .contextMenu {

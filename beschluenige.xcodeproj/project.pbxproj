@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		FDBDF2692F2F5AAF008747A7 /* beschluenige Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = FDBDF2682F2F5AAF008747A7 /* beschluenige Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		FDE813302F36ADB20065FF08 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = 3513E7CF2E82113FEA11ECB0 /* SwiftCBOR */; };
+		FDE813312F36ADB20065FF08 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = 6198FABCF9BC50F813EF4A16 /* SwiftCBOR */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +77,8 @@
 		91AB0C55F6B20DC97EB50D74 /* Exceptions for "beschluenige" folder in "beschluenige Watch App" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Data/CBORDecoder.swift,
+				Data/CBOREncoder.swift,
 				Data/ChunkTransferInfo.swift,
 			);
 			target = FDBDF2672F2F5AAF008747A7 /* beschluenige Watch App */;
@@ -129,6 +133,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FDE813302F36ADB20065FF08 /* SwiftCBOR in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -150,6 +155,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FDE813312F36ADB20065FF08 /* SwiftCBOR in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -234,6 +240,7 @@
 			);
 			name = beschluenigeTests;
 			packageProductDependencies = (
+				3513E7CF2E82113FEA11ECB0 /* SwiftCBOR */,
 			);
 			productName = beschluenigeTests;
 			productReference = FDBDF2522F2F5AAF008747A7 /* beschluenigeTests.xctest */;
@@ -302,6 +309,7 @@
 			);
 			name = "beschluenige Watch AppTests";
 			packageProductDependencies = (
+				6198FABCF9BC50F813EF4A16 /* SwiftCBOR */,
 			);
 			productName = "beschluenige Watch AppTests";
 			productReference = FDBDF2772F2F5AB0008747A7 /* beschluenige Watch AppTests.xctest */;
@@ -373,6 +381,9 @@
 			);
 			mainGroup = FDBDF23C2F2F5AAE008747A7;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				45C0499F50AD3DD630EE8462 /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FDBDF2462F2F5AAE008747A7 /* Products */;
 			projectDirPath = "";
@@ -1030,6 +1041,30 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		45C0499F50AD3DD630EE8462 /* XCRemoteSwiftPackageReference "SwiftCBOR" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/valpackett/SwiftCBOR.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		3513E7CF2E82113FEA11ECB0 /* SwiftCBOR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45C0499F50AD3DD630EE8462 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
+			productName = SwiftCBOR;
+		};
+		6198FABCF9BC50F813EF4A16 /* SwiftCBOR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45C0499F50AD3DD630EE8462 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
+			productName = SwiftCBOR;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = FDBDF23D2F2F5AAE008747A7 /* Project object */;
 }
