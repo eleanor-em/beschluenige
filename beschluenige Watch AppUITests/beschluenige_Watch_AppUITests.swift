@@ -9,31 +9,33 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         continueAfterFailure = false
         app = XCUIApplication()
         app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        // Wait for the app to fully load before each test. Under parallel
+        // execution the simulator can be slow, especially on the first boot.
+        XCTAssertTrue(
+            app.buttons["Start"].waitForExistence(timeout: 10),
+            "App should show Start button after launch"
+        )
     }
 
     @MainActor
     func testStartButtonExists() throws {
-        app.launch()
-
-        XCTAssertTrue(app.buttons["Start"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Start"].exists)
     }
 
     @MainActor
     func testStartButtonBeginsRecording() throws {
-        app.launch()
-
         app.buttons["Start"].tap()
 
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["BPM"].exists)
     }
 
     @MainActor
     func testStopButtonOpensExport() throws {
-        app.launch()
-
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
 
         app.buttons["Stop"].tap()
         // Export sheet auto-appears after stopping
@@ -42,12 +44,8 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportAutoStartsAfterStop() throws {
-        app.launch()
-
-        let startButton = app.buttons["Start"]
-        XCTAssertTrue(startButton.waitForExistence(timeout: 5))
-        startButton.tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+        app.buttons["Start"].tap()
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
 
         app.buttons["Stop"].tap()
 
@@ -61,10 +59,8 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportDoneButtonDismisses() throws {
-        app.launch()
-
         app.buttons["Start"].tap()
-        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
 
         app.buttons["Stop"].tap()
         // Export sheet auto-appears
@@ -78,8 +74,6 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testWorkoutViewDisplaysHeartRateInfo() throws {
-        app.launch()
-
         app.buttons["Start"].tap()
 
         // Recording view should show either "waiting..." (no samples yet)
@@ -89,16 +83,13 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
             NSPredicate(format: "label ENDSWITH 's ago'")
         ).firstMatch
 
-        let found = waitingText.waitForExistence(timeout: 5)
+        let found = waitingText.waitForExistence(timeout: 10)
             || agoText.waitForExistence(timeout: 1)
         XCTAssertTrue(found)
     }
 
     @MainActor
     func testWorkoutListShowsSeededWorkout() throws {
-        app.launch()
-
-        XCTAssertTrue(app.buttons["Workouts"].waitForExistence(timeout: 5))
         app.buttons["Workouts"].tap()
 
         // The UI-testing path seeds one workout with 0 chunks

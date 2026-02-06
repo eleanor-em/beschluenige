@@ -19,7 +19,7 @@ Run test coverage for the watchOS app and display a filtered report.
    ```
 3. Generate the filtered coverage report. The filtered files are a workaround for limitations of xccov. No other files should ever be added.
    ```
-   xcrun xccov view --report TestResults.xcresult | grep ".swift" | grep -v "Util/Assertions.swift" | grep -v "ConnectivitySession.swift" | grep -v "AppTests/"
+   xcrun xccov view --report TestResults.xcresult | grep ".swift" | grep -v "Util/Assertions.swift" | grep -v "ConnectivitySession.swift" | grep -v "Tests/" | grep -v "UITests/
    ```
 4. When presenting the report to the user:
    - Summarise per-file coverage for the watch app in a markdown table.
