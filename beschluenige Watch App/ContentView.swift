@@ -44,7 +44,7 @@ struct ContentView: View {
 
     var body: some View {
         NavigationStack {
-            if workoutManager.isRecording {
+            if workoutManager.state == .recording {
                 WorkoutView(workoutManager: workoutManager)
             } else {
                 StartView(
@@ -53,11 +53,13 @@ struct ContentView: View {
                 )
             }
         }
-        .sheet(isPresented: $showExport) {
-            ExportView(workoutManager: workoutManager, workoutStore: workoutStore)
-        }
-        .onChange(of: workoutManager.isRecording) { oldValue, newValue in
-            if oldValue && !newValue && workoutManager.currentWorkout != nil {
+        .sheet(
+            isPresented: $showExport,
+            onDismiss: { workoutManager.finishExporting() },
+            content: { ExportView(workoutManager: workoutManager, workoutStore: workoutStore) }
+        )
+        .onChange(of: workoutManager.state) { _, newValue in
+            if newValue == .exporting {
                 showExport = true
             }
         }

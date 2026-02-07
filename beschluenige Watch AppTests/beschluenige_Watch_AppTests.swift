@@ -364,6 +364,43 @@ struct WorkoutTests {
 @MainActor
 struct WorkoutManagerTests {
 
+    @Test func stateIsIdleByDefault() {
+        let manager = WorkoutManager(
+            provider: StubHeartRateProvider(),
+            locationProvider: StubLocationProvider(),
+            motionProvider: StubMotionProvider()
+        )
+        #expect(manager.state == .idle)
+        #expect(manager.currentWorkout == nil)
+    }
+
+    @Test func finishExportingResetsToIdle() async throws {
+        let manager = WorkoutManager(
+            provider: StubHeartRateProvider(),
+            locationProvider: StubLocationProvider(),
+            motionProvider: StubMotionProvider()
+        )
+        try await manager.startRecording()
+        manager.stopRecording()
+        #expect(manager.state == .exporting)
+        #expect(manager.currentWorkout != nil)
+
+        manager.finishExporting()
+        #expect(manager.state == .idle)
+        #expect(manager.currentWorkout == nil)
+    }
+
+    @Test func finishExportingFromIdleLogsError() {
+        let manager = WorkoutManager(
+            provider: StubHeartRateProvider(),
+            locationProvider: StubLocationProvider(),
+            motionProvider: StubMotionProvider()
+        )
+        // Should not crash; logs an error internally
+        manager.finishExporting()
+        #expect(manager.state == .idle)
+    }
+
     @Test func startRecordingCreatesWorkout() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
@@ -376,7 +413,7 @@ struct WorkoutManagerTests {
 
         try await manager.startRecording()
 
-        #expect(manager.isRecording)
+        #expect(manager.state == .recording)
         #expect(manager.currentWorkout != nil)
         #expect(manager.currentWorkout?.sampleCount == 0)
 
@@ -396,7 +433,7 @@ struct WorkoutManagerTests {
         try await manager.startRecording()
         manager.stopRecording()
 
-        #expect(!manager.isRecording)
+        #expect(manager.state == .exporting)
         #expect(manager.currentWorkout?.endDate != nil)
     }
 
@@ -522,7 +559,7 @@ struct WorkoutManagerTests {
         manager.stopRecording()
     }
 
-    @Test func stopClearsSampleDelivery() async throws {
+    @Test func lateSamplesPreservedAfterStopHR() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
@@ -542,11 +579,11 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        // After stop, samples are flushed to disk, so in-memory count is 0
-        #expect(manager.currentWorkout?.sampleCount == 0)
+        // Late-arriving sample is captured in-memory (will be flushed during export)
+        #expect(manager.currentWorkout?.sampleCount == 1)
     }
 
-    @Test func stopClearsLocationSampleDelivery() async throws {
+    @Test func lateSamplesPreservedAfterStopLocation() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
@@ -570,10 +607,11 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.locationSampleCount == 0)
+        // Late-arriving sample is captured in-memory (will be flushed during export)
+        #expect(manager.locationSampleCount == 1)
     }
 
-    @Test func stopClearsAccelerometerSampleDelivery() async throws {
+    @Test func lateSamplesPreservedAfterStopAccelerometer() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
@@ -593,10 +631,11 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.accelerometerSampleCount == 0)
+        // Late-arriving sample is captured in-memory (will be flushed during export)
+        #expect(manager.accelerometerSampleCount == 1)
     }
 
-    @Test func stopClearsDeviceMotionSampleDelivery() async throws {
+    @Test func lateSamplesPreservedAfterStopDeviceMotion() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()
         let stubMotion = StubMotionProvider()
@@ -614,7 +653,8 @@ struct WorkoutManagerTests {
 
         await Task.yield()
 
-        #expect(manager.deviceMotionSampleCount == 0)
+        // Late-arriving sample is captured in-memory (will be flushed during export)
+        #expect(manager.deviceMotionSampleCount == 1)
     }
 
     @Test func flushCurrentChunkPreservesCumulativeCounts() async throws {
@@ -734,8 +774,8 @@ struct WorkoutManagerTests {
 
         manager.stopRecording()
 
-        // isRecording is now false, but currentWorkout is non-nil.
-        // This covers the right side of the || guard in flushCurrentChunk.
+        #expect(manager.state == .exporting)
+        #expect(manager.currentWorkout != nil)
         manager.flushCurrentChunk()
 
         if let workout = manager.currentWorkout {
@@ -819,4 +859,62 @@ struct WorkoutManagerTests {
             }
         }
     }
+
+    @Test func lateArrivingSamplesNotLostAfterStop() async throws {
+        let stub = StubHeartRateProvider()
+        let stubLocation = StubLocationProvider()
+        let stubMotion = StubMotionProvider()
+        let manager = WorkoutManager(
+            provider: stub,
+            locationProvider: stubLocation,
+            motionProvider: stubMotion
+        )
+
+        try await manager.startRecording()
+
+        // Send initial samples and confirm they arrive
+        let t = Date()
+        stub.sendSamples([
+            HeartRateSample(timestamp: t, beatsPerMinute: 100),
+        ])
+        await Task.yield()
+        #expect(manager.heartRateSampleCount == 1)
+
+        // Send more samples (enqueued as Task { @MainActor } but not yet executed)
+        stub.sendSamples([
+            HeartRateSample(timestamp: t.addingTimeInterval(1), beatsPerMinute: 110),
+        ])
+        stubLocation.sendSamples([
+            LocationSample(
+                timestamp: t.addingTimeInterval(1), latitude: 43.0, longitude: -79.0,
+                altitude: 76.0, horizontalAccuracy: 5.0, verticalAccuracy: 8.0,
+                speed: 3.0, course: 90.0
+            ),
+        ])
+        stubMotion.sendAccelSamples([
+            AccelerometerSample(timestamp: t.addingTimeInterval(1), x: 0.1, y: 0.2, z: 0.3),
+        ])
+
+        // Stop immediately in the same synchronous frame
+        manager.stopRecording()
+
+        // Let in-flight tasks drain
+        await Task.yield()
+
+        // Late-arriving samples should be captured in the workout's in-memory arrays
+        // (they will be flushed during export via finalizeChunks)
+        #expect(manager.currentWorkout?.heartRateSamples.count == 1, "Late HR sample was lost")
+        #expect(manager.currentWorkout?.locationSamples.count == 1, "Late location sample was lost")
+        #expect(
+            manager.currentWorkout?.accelerometerSamples.count == 1,
+            "Late accelerometer sample was lost"
+        )
+
+        if let workout = manager.currentWorkout {
+            for url in workout.chunkURLs {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+    }
+
 }

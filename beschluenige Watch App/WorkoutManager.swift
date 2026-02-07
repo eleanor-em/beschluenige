@@ -1,9 +1,15 @@
 import Foundation
 import os
 
+enum WorkoutState: Equatable, Sendable {
+    case idle
+    case recording
+    case exporting
+}
+
 @Observable
 final class WorkoutManager {
-    var isRecording = false
+    var state: WorkoutState = .idle
     var currentHeartRate: Double = 0
     var lastHeartRateSampleDate: Date?
     var lastLocationSampleDate: Date?
@@ -13,7 +19,7 @@ final class WorkoutManager {
     var accelerometerSampleCount: Int = 0
     var deviceMotionSampleCount: Int = 0
     var chunkCount: Int = 0
-    var flushInterval: TimeInterval = 120
+    var flushInterval: TimeInterval = 600
 
     private var cumulativeHeartRateCount: Int = 0
     private var cumulativeLocationCount: Int = 0
@@ -45,6 +51,9 @@ final class WorkoutManager {
     }
 
     func startRecording() async throws {
+        if state != .idle {
+            logger.error("startRecording() called in unexpected state: \(String(describing: self.state))")
+        }
         currentWorkout = Workout(startDate: Date())
         currentHeartRate = 0
         lastHeartRateSampleDate = nil
@@ -84,7 +93,7 @@ final class WorkoutManager {
             }
         )
 
-        isRecording = true
+        state = .recording
 
         flushTimer = Timer.scheduledTimer(
             withTimeInterval: flushInterval, repeats: true,
@@ -99,6 +108,9 @@ final class WorkoutManager {
     }
 
     func stopRecording() {
+        if state != .recording {
+            logger.error("stopRecording() called in unexpected state: \(String(describing: self.state))")
+        }
         flushTimer?.invalidate()
         flushTimer = nil
 
@@ -113,12 +125,22 @@ final class WorkoutManager {
             + cumulativeAccelerometerCount + cumulativeDeviceMotionCount
 
         currentWorkout?.endDate = Date()
-        isRecording = false
+        state = .exporting
+    }
+
+    func finishExporting() {
+        if state != .exporting {
+            logger.error("finishExporting() called in unexpected state: \(String(describing: self.state))")
+        }
+        currentWorkout = nil
+        state = .idle
     }
 
     func flushCurrentChunk() {
-        guard isRecording || currentWorkout != nil else { return }
         guard currentWorkout != nil else { return }
+        if state != .recording && state != .exporting {
+            logger.error("flushCurrentChunk() called in unexpected state: \(String(describing: self.state))")
+        }
 
         cumulativeHeartRateCount += currentWorkout!.heartRateSamples.count
         cumulativeLocationCount += currentWorkout!.locationSamples.count
@@ -128,6 +150,7 @@ final class WorkoutManager {
         do {
             if let url = try currentWorkout!.flushChunk() {
                 logger.info("Flushed chunk to \(url.lastPathComponent)")
+                chunkCount += 1
             }
         } catch {
             logger.error("Failed to flush chunk: \(error.localizedDescription)")
@@ -139,15 +162,13 @@ final class WorkoutManager {
             cumulativeAccelerometerCount + currentWorkout!.accelerometerSamples.count
         deviceMotionSampleCount =
             cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
-        chunkCount += 1
     }
 
     private func processHeartRateSamples(_ samples: [HeartRateSample]) {
-        guard isRecording else {
-            logger.error("processSamples(): not currently recording")
+        guard currentWorkout != nil else {
+            logger.error("processSamples(): no active workout")
             return
         }
-        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
         currentWorkout!.heartRateSamples.append(contentsOf: samples)
         heartRateSampleCount = cumulativeHeartRateCount + currentWorkout!.heartRateSamples.count
         if let last = samples.last {
@@ -157,11 +178,10 @@ final class WorkoutManager {
     }
 
     private func processLocationSamples(_ samples: [LocationSample]) {
-        guard isRecording else {
-            logger.error("processLocationSamples(): not currently recording")
+        guard currentWorkout != nil else {
+            logger.error("processLocationSamples(): no active workout")
             return
         }
-        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
         currentWorkout!.locationSamples.append(contentsOf: samples)
         locationSampleCount = cumulativeLocationCount + currentWorkout!.locationSamples.count
         if let last = samples.last {
@@ -170,22 +190,20 @@ final class WorkoutManager {
     }
 
     private func processAccelerometerSamples(_ samples: [AccelerometerSample]) {
-        guard isRecording else {
-            logger.error("processAccelerometerSamples(): not currently recording")
+        guard currentWorkout != nil else {
+            logger.error("processAccelerometerSamples(): no active workout")
             return
         }
-        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
         currentWorkout!.accelerometerSamples.append(contentsOf: samples)
         accelerometerSampleCount =
             cumulativeAccelerometerCount + currentWorkout!.accelerometerSamples.count
     }
 
     private func processDeviceMotionSamples(_ samples: [DeviceMotionSample]) {
-        guard isRecording else {
-            logger.error("processDeviceMotionSamples(): not currently recording")
+        guard currentWorkout != nil else {
+            logger.error("processDeviceMotionSamples(): no active workout")
             return
         }
-        assertExcludeCoverage(currentWorkout != nil, "isRecording implies currentWorkout != nil")
         currentWorkout!.deviceMotionSamples.append(contentsOf: samples)
         deviceMotionSampleCount =
             cumulativeDeviceMotionCount + currentWorkout!.deviceMotionSamples.count
