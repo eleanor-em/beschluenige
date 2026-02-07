@@ -73,7 +73,7 @@ struct WorkoutStoreTests {
             totalSampleCount: 5
         )
 
-        store.markTransferred(workoutId: "s1")
+        store.markQueued(workoutId: "s1")
 
         #expect(store.workouts[0].transferred == true)
     }
@@ -82,7 +82,7 @@ struct WorkoutStoreTests {
         let (store, url) = makeStore()
         defer { try? FileManager.default.removeItem(at: url) }
 
-        store.markTransferred(workoutId: "nonexistent")
+        store.markQueued(workoutId: "nonexistent")
 
         #expect(store.workouts.isEmpty)
     }
@@ -168,7 +168,7 @@ struct WorkoutStoreTests {
             chunkURLs: [URL(fileURLWithPath: "/tmp/c.cbor")],
             totalSampleCount: 99
         )
-        store1.markTransferred(workoutId: "rt1")
+        store1.markQueued(workoutId: "rt1")
 
         let store2 = WorkoutStore(persistenceURL: persistenceURL)
 

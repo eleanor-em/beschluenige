@@ -4,7 +4,9 @@
 //
 //  Created by Eleanor McMurtry on 06.02.2026.
 //
+import CoreLocation
 import Foundation
+import HealthKit
 
 extension Int {
     var roundedWithAbbreviations: String {
@@ -28,6 +30,61 @@ extension Date {
             return "\(Int(elapsed))s"
         } else {
             return "\(Int(elapsed / 60.0))m"
+        }
+    }
+}
+
+extension CLAuthorizationStatus {
+    nonisolated var description: String {
+        switch self {
+        case .notDetermined:
+            return "notDetermined"
+        case .restricted:
+            return "restricted"
+        case .denied:
+            return "denied"
+        case .authorizedAlways:
+            return "authorizedAlways"
+        case .authorizedWhenInUse:
+            return "authorizedWhenInUse"
+        @unknown default:
+            return "unknown"
+        }
+    }
+}
+
+extension HKAuthorizationStatus {
+    nonisolated var description: String {
+        switch self {
+        case .notDetermined:
+            return "notDetermined"
+        case .sharingAuthorized:
+            return "sharingAuthorized"
+        case .sharingDenied:
+            return "sharingDenied"
+        @unknown default:
+            return "unknown"
+        }
+    }
+}
+
+extension HKWorkoutSessionState {
+    nonisolated var description: String {
+        switch self {
+        case .notStarted:
+            return "notStarted"
+        case .running:
+            return "running"
+        case .ended:
+            return "ended"
+        case .paused:
+            return "paused"
+        case .prepared:
+            return "prepared"
+        case .stopped:
+            return "stopped"
+        @unknown default:
+            return "unknown"
         }
     }
 }

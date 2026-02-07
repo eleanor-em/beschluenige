@@ -1,15 +1,11 @@
 import SwiftUI
-import os
 
 struct ContentView: View {
     @State private var workoutManager: WorkoutManager
     @State private var workoutStore: WorkoutStore
     @State private var showExport = false
 
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "ContentView"
-    )
+    private let logger = AppLogger(category: "ContentView")
 
     init() {
         if CommandLine.arguments.contains("--ui-testing") {
@@ -33,6 +29,7 @@ struct ContentView: View {
                 chunkURLs: [],
                 totalSampleCount: 42
             )
+            logger.info("Seeded for UI testing")
         }
         _workoutStore = State(initialValue: store)
     }

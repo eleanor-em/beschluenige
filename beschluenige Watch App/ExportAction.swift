@@ -18,7 +18,7 @@ struct ExportAction {
         try workout.finalizeChunks()
     }
     var registerWorkout: (String, Date, [URL], Int) -> Void = { _, _, _, _ in }
-    var markTransferred: (String) -> Void = { _ in }
+    var markQueued: (String) -> Void = { _ in }
     var storeProgress: (String, Progress) -> Void = { _, _ in }
 
     func execute(workout: inout Workout) -> TransferState {
@@ -38,7 +38,7 @@ struct ExportAction {
             chunkURLs, workout.workoutId, workout.startDate, workout.cumulativeSampleCount
         ) {
             storeProgress(workout.workoutId, progress)
-            markTransferred(workout.workoutId)
+            markQueued(workout.workoutId)
             return .queued
         }
         return .savedLocally(chunkURLs)

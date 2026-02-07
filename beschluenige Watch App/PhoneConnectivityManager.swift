@@ -1,15 +1,11 @@
 import Foundation
 import WatchConnectivity
-import os
 
 final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
     static let shared = PhoneConnectivityManager()
 
     private let session: any ConnectivitySession
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "Connectivity"
-    )
+    private let logger = AppLogger(category: "Connectivity")
 
     private override init() {
         self.session = WCSession.default
@@ -38,6 +34,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         startDate: Date,
         totalSampleCount: Int
     ) -> Progress? {
+        logger.info("sendChunks(): \(workoutId), \(chunkURLs.count) chunks, \(totalSampleCount) samples")
         guard session.activationState == .activated else { return nil }
         guard !chunkURLs.isEmpty else { return nil }
 

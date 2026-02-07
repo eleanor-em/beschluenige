@@ -1,15 +1,11 @@
 import SwiftUI
-import os
 
 struct StartView: View {
     var workoutManager: WorkoutManager
     var workoutStore: WorkoutStore
     @State private var errorMessage: String?
 
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "StartView"
-    )
+    private let logger = AppLogger(category: "StartView")
 
     init(
         workoutManager: WorkoutManager,
@@ -32,6 +28,10 @@ struct StartView: View {
 
             NavigationLink("Workouts") {
                 WorkoutListView(workoutStore: workoutStore)
+            }
+
+            NavigationLink("Logs") {
+                LogsView()
             }
 
             if let errorMessage {

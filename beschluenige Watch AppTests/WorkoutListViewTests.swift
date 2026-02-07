@@ -47,7 +47,7 @@ struct WorkoutListViewTests {
             chunkURLs: [],
             totalSampleCount: 10
         )
-        store.markTransferred(workoutId: "s1")
+        store.markQueued(workoutId: "s1")
 
         let view = WorkoutListView(workoutStore: store)
         _ = view.body

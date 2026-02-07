@@ -146,6 +146,20 @@ struct WorkoutManagerEdgeCaseTests {
         #expect(manager.state == .exporting)
     }
 
+    @Test func stopRecordingWithNilWorkoutLogs() async throws {
+        let manager = WorkoutManager(
+            provider: StubHeartRateProvider(),
+            locationProvider: StubLocationProvider(),
+            motionProvider: StubMotionProvider()
+        )
+        try await manager.startRecording()
+        // Nil out currentWorkout while still in .recording state
+        // to exercise the ?? fallback in the log message
+        manager.currentWorkout = nil
+        manager.stopRecording()
+        #expect(manager.state == .exporting)
+    }
+
     @Test func emptyFlushDoesNotIncrementChunkCount() async throws {
         let stub = StubHeartRateProvider()
         let stubLocation = StubLocationProvider()

@@ -1,4 +1,6 @@
+import CoreLocation
 import Foundation
+import HealthKit
 import Testing
 @testable import beschluenige_Watch_App
 
@@ -46,6 +48,83 @@ struct FormattingTests {
     @Test func negativeSmallNumber() {
         // Negative values below 1000 return plain representation
         #expect((-5).roundedWithAbbreviations == "-5")
+    }
+
+    // MARK: - CLAuthorizationStatus.description
+
+    @Test func clAuthNotDetermined() {
+        #expect(CLAuthorizationStatus.notDetermined.description == "notDetermined")
+    }
+
+    @Test func clAuthRestricted() {
+        #expect(CLAuthorizationStatus.restricted.description == "restricted")
+    }
+
+    @Test func clAuthDenied() {
+        #expect(CLAuthorizationStatus.denied.description == "denied")
+    }
+
+    @Test func clAuthAuthorizedAlways() {
+        #expect(CLAuthorizationStatus.authorizedAlways.description == "authorizedAlways")
+    }
+
+    @Test func clAuthAuthorizedWhenInUse() {
+        #expect(CLAuthorizationStatus.authorizedWhenInUse.description == "authorizedWhenInUse")
+    }
+
+    @Test func clAuthUnknown() {
+        let unknown = CLAuthorizationStatus(rawValue: 99)!
+        #expect(unknown.description == "unknown")
+    }
+
+    // MARK: - HKAuthorizationStatus.description
+
+    @Test func hkAuthNotDetermined() {
+        #expect(HKAuthorizationStatus.notDetermined.description == "notDetermined")
+    }
+
+    @Test func hkAuthSharingAuthorized() {
+        #expect(HKAuthorizationStatus.sharingAuthorized.description == "sharingAuthorized")
+    }
+
+    @Test func hkAuthSharingDenied() {
+        #expect(HKAuthorizationStatus.sharingDenied.description == "sharingDenied")
+    }
+
+    @Test func hkAuthUnknown() {
+        let unknown = HKAuthorizationStatus(rawValue: 99)!
+        #expect(unknown.description == "unknown")
+    }
+
+    // MARK: - HKWorkoutSessionState.description
+
+    @Test func wkStateNotStarted() {
+        #expect(HKWorkoutSessionState.notStarted.description == "notStarted")
+    }
+
+    @Test func wkStateRunning() {
+        #expect(HKWorkoutSessionState.running.description == "running")
+    }
+
+    @Test func wkStateEnded() {
+        #expect(HKWorkoutSessionState.ended.description == "ended")
+    }
+
+    @Test func wkStatePaused() {
+        #expect(HKWorkoutSessionState.paused.description == "paused")
+    }
+
+    @Test func wkStatePrepared() {
+        #expect(HKWorkoutSessionState.prepared.description == "prepared")
+    }
+
+    @Test func wkStateStopped() {
+        #expect(HKWorkoutSessionState.stopped.description == "stopped")
+    }
+
+    @Test func wkStateUnknown() {
+        let unknown = HKWorkoutSessionState(rawValue: 99)!
+        #expect(unknown.description == "unknown")
     }
 
     // MARK: - secondsOrMinutesSince

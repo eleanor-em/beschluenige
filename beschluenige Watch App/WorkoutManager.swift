@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 enum WorkoutState: Equatable, Sendable {
     case idle
@@ -30,10 +29,7 @@ final class WorkoutManager {
     private let provider: any HeartRateProvider
     private let locationProvider: any LocationProvider
     private let motionProvider: any DeviceMotionProvider
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "WorkoutManager"
-    )
+    private let logger = AppLogger(category: "WorkoutManager")
 
     init(
         provider: any HeartRateProvider,
@@ -68,6 +64,7 @@ final class WorkoutManager {
         cumulativeDeviceMotionCount = 0
         chunkCount = 0
 
+        logger.info("startRecording: currentWorkout = \(currentWorkout!.startDate)")
         try await provider.startMonitoring { [weak self] samples in
             Task { @MainActor [weak self] in
                 self?.processHeartRateSamples(samples)
@@ -110,6 +107,9 @@ final class WorkoutManager {
     func stopRecording() {
         if state != .recording {
             logger.error("stopRecording() called in unexpected state: \(String(describing: self.state))")
+        } else {
+            let startDate = currentWorkout?.startDate ?? Date.distantPast
+            logger.info("stopRecording: currentWorkout = \(startDate)")
         }
         flushTimer?.invalidate()
         flushTimer = nil
@@ -129,6 +129,7 @@ final class WorkoutManager {
     }
 
     func finishExporting() {
+        logger.info("finishExporting: currentWorkout = \(currentWorkout?.startDate ?? Date.distantPast)")
         if state != .exporting {
             logger.error("finishExporting() called in unexpected state: \(String(describing: self.state))")
         }

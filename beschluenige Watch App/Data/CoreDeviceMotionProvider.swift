@@ -1,6 +1,5 @@
 import CoreMotion
 import Foundation
-import os
 
 final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable {
     private let manager = CMBatchedSensorManager()
@@ -13,10 +12,7 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
         @Sendable () -> AsyncThrowingStream<[CMAccelerometerData], any Error>
     nonisolated(unsafe) private var dmStreamFactory:
         @Sendable () -> AsyncThrowingStream<[CMDeviceMotion], any Error>
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "CoreMotion"
-    )
+    private let logger = AppLogger(category: "CoreMotion")
 
     init() {
         let mgr = manager
@@ -94,8 +90,6 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
             let stream = makeDMStream()
             await Self.iterateDMStream(stream, delta: delta, handler: deviceMotionHandler)
         }
-
-        logger.info("Started batched accelerometer (800 Hz) and device motion (200 Hz) updates")
     }
 
     static func iterateAccelStream(
@@ -111,10 +105,8 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
         } catch is CancellationError {
             // Expected during stopMonitoring -- no log needed
         } catch {
-            Logger(
-                subsystem: "net.lnor.beschluenige.watchkitapp",
-                category: "CoreMotion"
-            ).error("Accelerometer stream error: \(error.localizedDescription)")
+            AppLogger(category: "CoreMotion")
+                .error("Accelerometer stream error: \(error.localizedDescription)")
         }
     }
 
@@ -131,10 +123,8 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
         } catch is CancellationError {
             // Expected during stopMonitoring -- no log needed
         } catch {
-            Logger(
-                subsystem: "net.lnor.beschluenige.watchkitapp",
-                category: "CoreMotion"
-            ).error("Device motion stream error: \(error.localizedDescription)")
+            AppLogger(category: "CoreMotion")
+                .error("Device motion stream error: \(error.localizedDescription)")
         }
     }
 
@@ -143,7 +133,6 @@ final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable 
         accelTask = nil
         dmTask?.cancel()
         dmTask = nil
-        logger.info("Stopped accelerometer and device motion updates")
     }
 
     // MARK: - Conversion

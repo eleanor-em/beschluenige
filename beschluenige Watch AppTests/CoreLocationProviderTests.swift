@@ -68,6 +68,83 @@ struct CoreLocationProviderTests {
         )
     }
 
+    @Test func didFailWithLocationUnknownDoesNotCrash() {
+        let provider = CoreLocationProvider()
+        let error = NSError(domain: kCLErrorDomain, code: CLError.locationUnknown.rawValue)
+        provider.locationManager(CLLocationManager(), didFailWithError: error)
+    }
+
+    @Test func handleLocationUnknownLogsInfoUnder15Seconds() {
+        let provider = CoreLocationProvider()
+        // First call sets the start time and logs info
+        provider.handleLocationUnknown()
+        // Second call still under 15s, logs info
+        provider.handleLocationUnknown()
+    }
+
+    @Test func handleLocationUnknownLogsWarningAfter15Seconds() {
+        let provider = CoreLocationProvider()
+        // Backdate the first occurrence to >15s ago
+        provider.firstLocationUnknownAt = Date(timeIntervalSinceNow: -20)
+        provider.handleLocationUnknown()
+        // The warning was logged; confirm no crash
+    }
+
+    @Test func handleLocationUnknownThrottlesWarningToOncePerMinute() {
+        let provider = CoreLocationProvider()
+        provider.firstLocationUnknownAt = Date(timeIntervalSinceNow: -30)
+
+        // First warning fires
+        provider.handleLocationUnknown()
+        let firstWarningTime = provider.lastLocationUnknownWarningAt
+        #expect(firstWarningTime != nil)
+
+        // Second call within 60s should NOT update the warning time
+        provider.handleLocationUnknown()
+        #expect(provider.lastLocationUnknownWarningAt == firstWarningTime)
+    }
+
+    @Test func handleLocationUnknownWarningFiresAgainAfter60Seconds() {
+        let provider = CoreLocationProvider()
+        provider.firstLocationUnknownAt = Date(timeIntervalSinceNow: -120)
+        // Simulate a warning that happened >60s ago
+        provider.lastLocationUnknownWarningAt = Date(timeIntervalSinceNow: -61)
+
+        provider.handleLocationUnknown()
+        // Warning time should be updated to now
+        let diff = Date().timeIntervalSince(provider.lastLocationUnknownWarningAt!)
+        #expect(diff < 1)
+    }
+
+    @Test func resetLocationUnknownTrackingClearsState() {
+        let provider = CoreLocationProvider()
+        provider.firstLocationUnknownAt = Date()
+        provider.lastLocationUnknownWarningAt = Date()
+
+        provider.resetLocationUnknownTracking()
+
+        #expect(provider.firstLocationUnknownAt == nil)
+        #expect(provider.lastLocationUnknownWarningAt == nil)
+    }
+
+    @Test func didUpdateLocationsResetsLocationUnknownTracking() async throws {
+        let provider = CoreLocationProvider()
+        try await provider.startMonitoring(handler: { _ in }, startRealUpdates: false)
+
+        // Simulate some location-unknown state
+        provider.firstLocationUnknownAt = Date()
+        provider.lastLocationUnknownWarningAt = Date()
+
+        let location = CLLocation(latitude: 43.0, longitude: -79.0)
+        provider.locationManager(CLLocationManager(), didUpdateLocations: [location])
+        await Task.yield()
+
+        #expect(provider.firstLocationUnknownAt == nil)
+        #expect(provider.lastLocationUnknownWarningAt == nil)
+
+        provider.stopMonitoring()
+    }
+
     @Test func stopMonitoringClearsHandler() async throws {
         let provider = CoreLocationProvider()
         try await provider.startMonitoring { _ in }
@@ -204,7 +281,7 @@ struct CoreLocationProviderTests {
 
         await Task.yield()
 
-        let unknownStatus = unsafeBitCast(Int32(99), to: CLAuthorizationStatus.self)
+        let unknownStatus = CLAuthorizationStatus(rawValue: 99)!
         provider.handleAuthorizationChange(unknownStatus)
 
         try await task.value

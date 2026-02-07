@@ -624,6 +624,25 @@ struct HealthKitHeartRateProviderTests {
 
     // MARK: - didChangeTo with other states (no continuation)
 
+    // MARK: - checkAuthorizationStatus
+
+    @Test func checkAuthorizationStatusAuthorized() {
+        let provider = HealthKitHeartRateProvider()
+        // Should not log a warning
+        provider.checkAuthorizationStatus(.sharingAuthorized)
+    }
+
+    @Test func checkAuthorizationStatusNotAuthorized() {
+        let provider = HealthKitHeartRateProvider()
+        // Should log a warning
+        provider.checkAuthorizationStatus(.notDetermined)
+    }
+
+    @Test func checkAuthorizationStatusDenied() {
+        let provider = HealthKitHeartRateProvider()
+        provider.checkAuthorizationStatus(.sharingDenied)
+    }
+
     @Test func didChangeToPausedIsNoOp() throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()

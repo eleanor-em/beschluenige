@@ -132,7 +132,7 @@ struct ContentView: View {
 
     private func requestHealthKitAuthorization() async {
         guard HKHealthStore.isHealthDataAvailable() else {
-            logger.warning("HealthKit not available on this device")
+            logger.error("HealthKit not available on this device")
             return
         }
 
@@ -147,7 +147,7 @@ struct ContentView: View {
                 read: [heartRateType]
             )
             let wkStatus = store.authorizationStatus(for: workoutType)
-            logger.info("HealthKit workout authorization status: \(wkStatus.rawValue)")
+            logger.info("HealthKit authorization status: \(wkStatus.rawValue)")
             healthAuthDenied = wkStatus != .sharingAuthorized
         } catch {
             logger.error("HealthKit authorization error: \(error.localizedDescription)")

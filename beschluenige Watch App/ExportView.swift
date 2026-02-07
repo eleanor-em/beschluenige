@@ -1,5 +1,4 @@
 import SwiftUI
-import os
 
 struct ExportView: View {
     var workoutManager: WorkoutManager
@@ -7,10 +6,7 @@ struct ExportView: View {
     @State private var transferState: TransferState
     @Environment(\.dismiss) private var dismiss
 
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "Export"
-    )
+    private let logger = AppLogger(category: "Export")
 
     init(
         workoutManager: WorkoutManager,
@@ -28,8 +24,8 @@ struct ExportView: View {
                 totalSampleCount: totalSampleCount
             )
         }
-        action.markTransferred = { workoutId in
-            workoutStore.markTransferred(workoutId: workoutId)
+        action.markQueued = { workoutId in
+            workoutStore.markQueued(workoutId: workoutId)
         }
         action.storeProgress = { workoutId, progress in
             workoutStore.storeTransferProgress(workoutId: workoutId, progress: progress)

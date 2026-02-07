@@ -1,5 +1,4 @@
 import Foundation
-import os
 
 @Observable
 final class WorkoutStore: @unchecked Sendable {
@@ -8,10 +7,7 @@ final class WorkoutStore: @unchecked Sendable {
     private var transferObservations: [String: NSKeyValueObservation] = [:]
 
     private let persistenceURL: URL
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "WorkoutStore"
-    )
+    private let logger = AppLogger(category: "WorkoutStore")
 
     init(persistenceURL: URL? = nil) {
         self.persistenceURL = persistenceURL ?? FileManager.default.urls(
@@ -55,8 +51,9 @@ final class WorkoutStore: @unchecked Sendable {
         saveWorkouts()
     }
 
-    func markTransferred(workoutId: String) {
+    func markQueued(workoutId: String) {
         guard let index = workouts.firstIndex(where: { $0.workoutId == workoutId }) else {
+            logger.warning("markQueued: missing workout \(workoutId)")
             return
         }
         workouts[index].transferred = true

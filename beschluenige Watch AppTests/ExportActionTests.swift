@@ -114,7 +114,7 @@ struct ExportActionTests {
             ]
             return try workout.finalizeChunks()
         }
-        action.markTransferred = { _ in marked = true }
+        action.markQueued = { _ in marked = true }
 
         var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000011))
         _ = action.execute(workout: &workout)
@@ -136,7 +136,7 @@ struct ExportActionTests {
             ]
             return try workout.finalizeChunks()
         }
-        action.markTransferred = { _ in marked = true }
+        action.markQueued = { _ in marked = true }
 
         var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000012))
         _ = action.execute(workout: &workout)

@@ -96,4 +96,20 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         let chunkText = app.staticTexts["0 chunks - 0.0 MB"]
         XCTAssertTrue(chunkText.waitForExistence(timeout: 5))
     }
+
+    @MainActor
+    func testLogsViewShowsEntries() throws {
+        app.buttons["Logs"].tap()
+
+        // The app logs during startup, so at least one entry should appear
+        let logsTitle = app.staticTexts["Logs"]
+        XCTAssertTrue(logsTitle.waitForExistence(timeout: 5))
+
+        // Verify that a log entry row rendered (ForEach closure executed).
+        // Each log entry row shows a category label like "[SomeCategory]".
+        let entryRow = app.staticTexts.matching(
+            NSPredicate(format: "label BEGINSWITH '['")
+        ).firstMatch
+        XCTAssertTrue(entryRow.waitForExistence(timeout: 5))
+    }
 }

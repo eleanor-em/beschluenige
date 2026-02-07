@@ -1,16 +1,14 @@
 import CoreLocation
 import Foundation
-import os
 
 final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerDelegate,
                                   @unchecked Sendable {
     private let locationManager = CLLocationManager()
     private var sampleHandler: (@Sendable ([LocationSample]) -> Void)?
     private var authorizationContinuation: CheckedContinuation<Void, Error>?
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige.watchkitapp",
-        category: "CoreLocationGPS"
-    )
+    private let logger = AppLogger(category: "CoreLocationGPS")
+    var firstLocationUnknownAt: Date?
+    var lastLocationUnknownWarningAt: Date?
 
     override init() {
         super.init()
@@ -54,14 +52,12 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
         sampleHandler = handler
         if startRealUpdates {
             locationManager.startUpdatingLocation()
-            logger.info("Started GPS location updates")
         }
     }
 
     func stopMonitoring() {
         locationManager.stopUpdatingLocation()
         sampleHandler = nil
-        logger.info("Stopped GPS location updates")
     }
 
     // MARK: - CLLocationManagerDelegate
@@ -83,6 +79,7 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
             )
         }
         Task { @MainActor [weak self] in
+            self?.resetLocationUnknownTracking()
             self?.sampleHandler?(samples)
         }
     }
@@ -91,12 +88,42 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
         _ manager: CLLocationManager,
         didFailWithError error: Error
     ) {
+        // kCLErrorLocationUnknown is transient -- GPS hasn't acquired a fix yet.
+        // It resolves on its own once the hardware warms up.
+        if (error as? CLError)?.code == .locationUnknown {
+            Task { @MainActor [weak self] in
+                self?.handleLocationUnknown()
+            }
+            return
+        }
         logger.error("Location error: \(error.localizedDescription)")
+    }
+
+    func handleLocationUnknown() {
+        let now = Date()
+        if firstLocationUnknownAt == nil {
+            firstLocationUnknownAt = now
+        }
+        let elapsed = now.timeIntervalSince(firstLocationUnknownAt!)
+        if elapsed > 15,
+           lastLocationUnknownWarningAt.map({ now.timeIntervalSince($0) > 60 }) ?? true {
+            lastLocationUnknownWarningAt = now
+            logger.warning(
+                "Location still unavailable after \(Int(elapsed))s"
+            )
+        } else {
+            logger.info("Location not yet available (transient)")
+        }
+    }
+
+    func resetLocationUnknownTracking() {
+        firstLocationUnknownAt = nil
+        lastLocationUnknownWarningAt = nil
     }
 
     nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
-        logger.info("Location authorization changed: \(status.rawValue)")
+        logger.info("Location authorization changed: \(status.description)")
         Task { @MainActor [weak self] in
             self?.handleAuthorizationChange(status)
         }
