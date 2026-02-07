@@ -268,4 +268,77 @@ struct WorkoutStoreTests {
         #expect(store.workouts[0].workoutId == "a")
         #expect(store.workouts[1].workoutId == "b")
     }
+
+    @Test func loadFiltersOutTestWorkouts() throws {
+        let persistenceURL = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: persistenceURL) }
+
+        // Write a manifest containing both a normal and a TEST_ workout
+        let records: [WatchWorkoutRecord] = [
+            WatchWorkoutRecord(
+                id: UUID(),
+                workoutId: "real",
+                startDate: Date(),
+                chunkCount: 1,
+                totalSampleCount: 10,
+                fileSizeBytes: 100,
+                transferred: false,
+                chunkFileNames: ["workout_real_0.cbor"]
+            ),
+            WatchWorkoutRecord(
+                id: UUID(),
+                workoutId: "test-run",
+                startDate: Date(),
+                chunkCount: 1,
+                totalSampleCount: 5,
+                fileSizeBytes: 50,
+                transferred: false,
+                chunkFileNames: ["TEST_workout_test-run_0.cbor"]
+            ),
+        ]
+        let data = try JSONEncoder().encode(records)
+        try data.write(to: persistenceURL)
+
+        let store = WorkoutStore(persistenceURL: persistenceURL)
+
+        #expect(store.workouts.count == 1)
+        #expect(store.workouts[0].workoutId == "real")
+    }
+
+    @Test func loadIncludesTestWorkoutsWhenRequested() throws {
+        let persistenceURL = makeTempURL()
+        defer { try? FileManager.default.removeItem(at: persistenceURL) }
+
+        let records: [WatchWorkoutRecord] = [
+            WatchWorkoutRecord(
+                id: UUID(),
+                workoutId: "real",
+                startDate: Date(),
+                chunkCount: 1,
+                totalSampleCount: 10,
+                fileSizeBytes: 100,
+                transferred: false,
+                chunkFileNames: ["workout_real_0.cbor"]
+            ),
+            WatchWorkoutRecord(
+                id: UUID(),
+                workoutId: "test-run",
+                startDate: Date(),
+                chunkCount: 1,
+                totalSampleCount: 5,
+                fileSizeBytes: 50,
+                transferred: false,
+                chunkFileNames: ["TEST_workout_test-run_0.cbor"]
+            ),
+        ]
+        let data = try JSONEncoder().encode(records)
+        try data.write(to: persistenceURL)
+
+        let store = WorkoutStore(
+            persistenceURL: persistenceURL,
+            includeTestWorkouts: true
+        )
+
+        #expect(store.workouts.count == 2)
+    }
 }

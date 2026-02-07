@@ -7,12 +7,14 @@ final class WorkoutStore: @unchecked Sendable {
     private var transferObservations: [String: NSKeyValueObservation] = [:]
 
     private let persistenceURL: URL
+    private let includeTestWorkouts: Bool
     private let logger = AppLogger(category: "WorkoutStore")
 
-    init(persistenceURL: URL? = nil) {
+    init(persistenceURL: URL? = nil, includeTestWorkouts: Bool = false) {
         self.persistenceURL = persistenceURL ?? FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!.appendingPathComponent("watch_workouts.json")
+        self.includeTestWorkouts = includeTestWorkouts
         loadWorkouts()
     }
 
@@ -109,7 +111,14 @@ final class WorkoutStore: @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: persistenceURL.path) else { return }
         do {
             let data = try Data(contentsOf: persistenceURL)
-            workouts = try JSONDecoder().decode([WatchWorkoutRecord].self, from: data)
+            let allWorkouts = try JSONDecoder().decode([WatchWorkoutRecord].self, from: data)
+            if includeTestWorkouts {
+                workouts = allWorkouts
+            } else {
+                workouts = allWorkouts.filter { record in
+                    !record.chunkFileNames.contains { $0.hasPrefix("TEST_") }
+                }
+            }
         } catch {
             logger.error("Failed to load watch workouts: \(error.localizedDescription)")
         }
