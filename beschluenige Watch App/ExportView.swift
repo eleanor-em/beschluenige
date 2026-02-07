@@ -52,8 +52,8 @@ struct ExportView: View {
                 switch transferState {
                 case .idle, .sending:
                     ProgressView("Sending...")
-                case .sent:
-                    Label("Sent", systemImage: "checkmark.circle.fill")
+                case .queued:
+                    Label("Queued", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
                 case .savedLocally(let urls):
                     Text("Transfer failed. \(urls.count) chunk(s) saved locally:")

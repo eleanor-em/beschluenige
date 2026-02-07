@@ -1,7 +1,7 @@
 import Foundation
 
 enum TransferState: Sendable {
-    case idle, sending, sent, savedLocally([URL]), failed(String)
+    case idle, sending, queued, savedLocally([URL]), failed(String)
 }
 
 struct ExportAction {
@@ -39,7 +39,7 @@ struct ExportAction {
         ) {
             storeProgress(workout.workoutId, progress)
             markTransferred(workout.workoutId)
-            return .sent
+            return .queued
         }
         return .savedLocally(chunkURLs)
     }

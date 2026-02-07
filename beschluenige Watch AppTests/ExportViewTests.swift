@@ -40,10 +40,10 @@ struct ExportViewTests {
         _ = view.body
     }
 
-    @Test func bodyRendersSent() {
+    @Test func bodyRendersQueued() {
         let view = ExportView(
             workoutManager: makeManager(),
-            initialTransferState: .sent
+            initialTransferState: .queued
         )
         _ = view.body
     }
@@ -67,7 +67,7 @@ struct ExportViewTests {
 
     // MARK: - sendToPhone
 
-    @Test func sendToPhoneSetsSentOnSuccess() {
+    @Test func sendToPhoneSetsQueuedOnSuccess() {
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in

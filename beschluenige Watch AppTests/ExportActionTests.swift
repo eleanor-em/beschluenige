@@ -4,7 +4,7 @@ import Testing
 
 struct ExportActionTests {
 
-    @Test func executeReturnsSentOnSuccess() {
+    @Test func executeReturnsQueuedOnSuccess() {
         var action = ExportAction()
         action.sendChunksViaPhone = { _, _, _, _ in Progress() }
         action.finalizeWorkout = { workout in
@@ -16,10 +16,10 @@ struct ExportActionTests {
 
         var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000000))
         let result = action.execute(workout: &workout)
-        if case .sent = result {
+        if case .queued = result {
             // pass
         } else {
-            Issue.record("Expected .sent, got \(result)")
+            Issue.record("Expected .queued, got \(result)")
         }
 
         // Clean up
@@ -217,7 +217,7 @@ struct ExportActionTests {
         // Default sendChunksViaPhone uses PhoneConnectivityManager.shared
         // On simulator, WCSession is not activated, so this falls back to local save
         #if !targetEnvironment(simulator)
-        // On a real watch WCSession may be activated, so .sent is valid
+        // On a real watch WCSession may be activated, so .queued is valid
         return
         #else
         var action = ExportAction()
@@ -230,9 +230,9 @@ struct ExportActionTests {
         var workout = Workout(startDate: Date(timeIntervalSince1970: 2000000002))
         let result = action.execute(workout: &workout)
 
-        // Should not be .sent (WCSession not activated on simulator)
-        if case .sent = result {
-            Issue.record("Expected fallback, not .sent on simulator")
+        // Should not be .queued (WCSession not activated on simulator)
+        if case .queued = result {
+            Issue.record("Expected fallback, not .queued on simulator")
         }
 
         // Clean up
