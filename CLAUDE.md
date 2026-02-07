@@ -12,6 +12,8 @@ Use the `/test` skill to run tests and get a filtered report. Unit tests use Swi
 
 Note: the Series 10 simulator is not available. Use Ultra 3 or Series 11.
 
+The `/test` and `/coverage` skills require `xcodebuild` and watchOS simulators, which are only available on macOS. They do not work in container environments (Claude Code on the web).
+
 ## Goals and non-goals
 - Accuracy is very important. It's OK if a lot of battery power is consumed in the interests of accuracy.
 
