@@ -134,32 +134,68 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         saveWorkouts()
     }
 
+    // Decode a CBOR chunk and append samples into the 4 per-sensor buckets.
+    // Returns false on decode failure.
+    private func decodeChunk(
+        _ data: Data,
+        into buckets: inout [[[Double]]],
+        fileName: String
+    ) -> Bool {
+        do {
+            var dec = CBORDecoder(data: data)
+            let mapCount = try dec.decodeMapHeader()
+            for _ in 0..<mapCount {
+                let key = Int(try dec.decodeUInt())
+                guard let count = try dec.decodeArrayHeader() else {
+                    logger.error("Unexpected indefinite array in chunk: \(fileName)")
+                    return false
+                }
+                guard key >= 0, key < buckets.count else {
+                    logger.error("Unknown key \(key): \(fileName)")
+                    continue
+                }
+                for _ in 0..<count {
+                    buckets[key].append(try dec.decodeFloat64Array())
+                }
+            }
+            return true
+        } catch {
+            logger.error(
+                "Failed to decode CBOR chunk \(fileName): \(error.localizedDescription)"
+            )
+            return false
+        }
+    }
+
     func mergeChunks(at index: Int) {
         let record = workouts[index]
         let sorted = record.receivedChunks.sorted { $0.chunkIndex < $1.chunkIndex }
 
-        var merged = Data()
-        for (i, chunk) in sorted.enumerated() {
+        // buckets[0]=HR, [1]=GPS, [2]=accel, [3]=DM
+        var buckets: [[[Double]]] = [[], [], [], []]
+
+        for chunk in sorted {
             guard let data = try? Data(contentsOf: chunk.fileURL) else {
                 logger.error("Failed to read chunk file: \(chunk.fileName)")
                 return
             }
-            if i == 0 {
-                merged.append(data)
-            } else {
-                // Strip header line from subsequent chunks
-                guard let content = String(data: data, encoding: .utf8) else {
-                    logger.error("Failed to decode chunk: \(chunk.fileName)")
-                    return
-                }
-                if let newlineIndex = content.firstIndex(of: "\n") {
-                    let body = content[content.index(after: newlineIndex)...]
-                    merged.append(Data(body.utf8))
-                }
-            }
+            guard decodeChunk(data, into: &buckets, fileName: chunk.fileName) else { return }
         }
 
-        let mergedName = "workout_\(record.workoutId).csv"
+        // Encode merged CBOR with indefinite-length per-sensor arrays
+        var enc = CBOREncoder()
+        enc.encodeMapHeader(count: 4)
+        for (key, samples) in buckets.enumerated() {
+            enc.encodeUInt(UInt64(key))
+            enc.encodeIndefiniteArrayHeader()
+            for sample in samples {
+                enc.encodeFloat64Array(sample)
+            }
+            enc.encodeBreak()
+        }
+
+        let merged = enc.data
+        let mergedName = "workout_\(record.workoutId).cbor"
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
@@ -238,7 +274,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
         fileURL: URL,
         metadata: [String: Any]?
     ) {
-        let fileName = metadata?["fileName"] as? String ?? "unknown.csv"
+        let fileName = metadata?["fileName"] as? String ?? "unknown.cbor"
         let workoutId = metadata?["workoutId"] as? String ?? "unknown"
         let chunkIndex = metadata?["chunkIndex"] as? Int ?? 0
         let totalChunks = metadata?["totalChunks"] as? Int ?? 1

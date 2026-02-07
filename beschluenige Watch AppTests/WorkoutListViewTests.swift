@@ -23,7 +23,7 @@ struct WorkoutListViewTests {
             totalSampleCount: totalSampleCount,
             fileSizeBytes: 1_048_576,
             transferred: transferred,
-            chunkFileNames: ["chunk.csv"]
+            chunkFileNames: ["chunk.cbor"]
         )
     }
 

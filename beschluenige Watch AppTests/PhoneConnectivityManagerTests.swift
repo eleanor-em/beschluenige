@@ -12,7 +12,7 @@ struct PhoneConnectivityManagerTests {
         let manager = PhoneConnectivityManager(session: stub)
 
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test_chunk_\(UUID().uuidString).csv")
+            .appendingPathComponent("test_chunk_\(UUID().uuidString).cbor")
         try "test".write(to: tempURL, atomically: true, encoding: .utf8)
 
         let result = manager.sendChunks(
@@ -46,9 +46,9 @@ struct PhoneConnectivityManagerTests {
         let manager = PhoneConnectivityManager(session: stub)
 
         let url1 = FileManager.default.temporaryDirectory
-            .appendingPathComponent("chunk_0_\(UUID().uuidString).csv")
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).cbor")
         let url2 = FileManager.default.temporaryDirectory
-            .appendingPathComponent("chunk_1_\(UUID().uuidString).csv")
+            .appendingPathComponent("chunk_1_\(UUID().uuidString).cbor")
         try "data1".write(to: url1, atomically: true, encoding: .utf8)
         try "data2".write(to: url2, atomically: true, encoding: .utf8)
 
@@ -89,7 +89,7 @@ struct PhoneConnectivityManagerTests {
         let manager = PhoneConnectivityManager(session: stub)
 
         let tempURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test_single_\(UUID().uuidString).csv")
+            .appendingPathComponent("test_single_\(UUID().uuidString).cbor")
         try "data".write(to: tempURL, atomically: true, encoding: .utf8)
 
         let result = manager.sendChunk(
@@ -146,7 +146,7 @@ struct PhoneConnectivityManagerTests {
         let manager = PhoneConnectivityManager(session: stub)
 
         let bogusURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nonexistent_\(UUID().uuidString).csv")
+            .appendingPathComponent("nonexistent_\(UUID().uuidString).cbor")
 
         let result = manager.sendChunks(
             chunkURLs: [bogusURL],

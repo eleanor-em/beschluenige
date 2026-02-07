@@ -20,7 +20,7 @@ struct WorkoutStoreTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let chunkURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("test_reg_\(UUID().uuidString).csv")
+            .appendingPathComponent("test_reg_\(UUID().uuidString).cbor")
         try Data("hello".utf8).write(to: chunkURL)
         defer { try? FileManager.default.removeItem(at: chunkURL) }
 
@@ -48,13 +48,13 @@ struct WorkoutStoreTests {
         store.registerWorkout(
             workoutId: "dup",
             startDate: Date(),
-            chunkURLs: [URL(fileURLWithPath: "/tmp/a.csv")],
+            chunkURLs: [URL(fileURLWithPath: "/tmp/a.cbor")],
             totalSampleCount: 10
         )
         store.registerWorkout(
             workoutId: "dup",
             startDate: Date(),
-            chunkURLs: [URL(fileURLWithPath: "/tmp/b.csv")],
+            chunkURLs: [URL(fileURLWithPath: "/tmp/b.cbor")],
             totalSampleCount: 20
         )
 
@@ -95,7 +95,7 @@ struct WorkoutStoreTests {
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
-        let chunkName = "test_deleteall_\(UUID().uuidString).csv"
+        let chunkName = "test_deleteall_\(UUID().uuidString).cbor"
         let chunkURL = documentsDir.appendingPathComponent(chunkName)
         try Data("test".utf8).write(to: chunkURL)
 
@@ -117,7 +117,7 @@ struct WorkoutStoreTests {
         defer { try? FileManager.default.removeItem(at: url) }
 
         let bogusURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("nonexistent_\(UUID().uuidString).csv")
+            .appendingPathComponent("nonexistent_\(UUID().uuidString).cbor")
 
         store.registerWorkout(
             workoutId: "missing",
@@ -138,7 +138,7 @@ struct WorkoutStoreTests {
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!
-        let chunkName = "test_already_deleted_\(UUID().uuidString).csv"
+        let chunkName = "test_already_deleted_\(UUID().uuidString).cbor"
         let chunkURL = documentsDir.appendingPathComponent(chunkName)
         try Data("test".utf8).write(to: chunkURL)
 
@@ -165,7 +165,7 @@ struct WorkoutStoreTests {
         store1.registerWorkout(
             workoutId: "rt1",
             startDate: Date(timeIntervalSince1970: 5000),
-            chunkURLs: [URL(fileURLWithPath: "/tmp/c.csv")],
+            chunkURLs: [URL(fileURLWithPath: "/tmp/c.cbor")],
             totalSampleCount: 99
         )
         store1.markTransferred(workoutId: "rt1")

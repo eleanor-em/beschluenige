@@ -49,7 +49,7 @@ struct ExportViewTests {
     }
 
     @Test func bodyRendersSavedLocally() {
-        let urls = [URL(fileURLWithPath: "/tmp/test.csv")]
+        let urls = [URL(fileURLWithPath: "/tmp/test.cbor")]
         let view = ExportView(
             workoutManager: makeManager(),
             initialTransferState: .savedLocally(urls)

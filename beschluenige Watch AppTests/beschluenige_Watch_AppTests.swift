@@ -37,21 +37,21 @@ struct WorkoutTests {
         #expect(workout.totalSampleCount == 4)
     }
 
-    @Test func csvHeader() {
+    @Test func cborEmptyWorkout() throws {
         let workout = Workout(startDate: Date())
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
-        #expect(lines.count == 1)
-        #expect(
-            lines[0]
-                == "type,timestamp,bpm,"
-                + "lat,lon,alt,h_acc,v_acc,speed,course,"
-                + "ax,ay,az,"
-                + "roll,pitch,yaw,rot_x,rot_y,rot_z,user_ax,user_ay,user_az,heading"
-        )
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        let mapCount = try dec.decodeMapHeader()
+        #expect(mapCount == 4)
+        for key in 0..<4 {
+            #expect(try dec.decodeUInt() == UInt64(key))
+            let count = try dec.decodeArrayHeader()
+            #expect(count == 0)
+        }
+        #expect(dec.isAtEnd)
     }
 
-    @Test func csvContainsHeartRateSamples() {
+    @Test func cborContainsHeartRateSamples() throws {
         let t1 = Date(timeIntervalSince1970: 1000)
         let t2 = Date(timeIntervalSince1970: 1005)
 
@@ -61,16 +61,33 @@ struct WorkoutTests {
             HeartRateSample(timestamp: t2, beatsPerMinute: 148),
         ]
 
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        let mapCount = try dec.decodeMapHeader()
+        #expect(mapCount == 4)
 
-        #expect(lines.count == 3)
-        // 23 columns: type,ts,bpm + 20 empty = 22 commas
-        #expect(lines[1].hasPrefix("H,1000.0,72.0,"))
-        #expect(lines[1].split(separator: ",", omittingEmptySubsequences: false).count == 23)
+        // Key 0: HR
+        #expect(try dec.decodeUInt() == 0)
+        let hrCount = try dec.decodeArrayHeader()
+        #expect(hrCount == 2)
+        let hr0 = try dec.decodeFloat64Array()
+        #expect(hr0.count == 2)
+        #expect(hr0[0] == 1000.0)
+        #expect(hr0[1] == 72.0)
+        let hr1 = try dec.decodeFloat64Array()
+        #expect(hr1[0] == 1005.0)
+        #expect(hr1[1] == 148.0)
+
+        // Skip remaining keys
+        for _ in 1..<4 {
+            _ = try dec.decodeUInt()
+            let count = try dec.decodeArrayHeader()
+            #expect(count == 0)
+        }
+        #expect(dec.isAtEnd)
     }
 
-    @Test func csvContainsLocationSamples() {
+    @Test func cborContainsLocationSamples() throws {
         let t = Date(timeIntervalSince1970: 2000)
 
         var workout = Workout(startDate: t)
@@ -82,15 +99,30 @@ struct WorkoutTests {
             ),
         ]
 
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        _ = try dec.decodeMapHeader()
 
-        #expect(lines.count == 2)
-        #expect(lines[1].hasPrefix("G,2000.0,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,"))
-        #expect(lines[1].split(separator: ",", omittingEmptySubsequences: false).count == 23)
+        // Key 0: HR (empty)
+        _ = try dec.decodeUInt()
+        #expect(try dec.decodeArrayHeader() == 0)
+
+        // Key 1: GPS
+        #expect(try dec.decodeUInt() == 1)
+        #expect(try dec.decodeArrayHeader() == 1)
+        let gps = try dec.decodeFloat64Array()
+        #expect(gps.count == 8)
+        #expect(gps[0] == 2000.0)
+        #expect(gps[1] == 43.65)
+        #expect(gps[2] == -79.38)
+        #expect(gps[3] == 76.0)
+        #expect(gps[4] == 5.0)
+        #expect(gps[5] == 8.0)
+        #expect(gps[6] == 3.5)
+        #expect(gps[7] == 180.0)
     }
 
-    @Test func csvContainsAccelerometerSamples() {
+    @Test func cborContainsAccelerometerSamples() throws {
         let t = Date(timeIntervalSince1970: 3000)
 
         var workout = Workout(startDate: t)
@@ -98,19 +130,28 @@ struct WorkoutTests {
             AccelerometerSample(timestamp: t, x: 0.01, y: -0.02, z: 0.98),
         ]
 
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
-        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        _ = try dec.decodeMapHeader()
 
-        #expect(lines.count == 2)
-        #expect(fields.count == 23)
-        #expect(fields[0] == "A")
-        #expect(fields[10] == "0.01")
-        #expect(fields[11] == "-0.02")
-        #expect(fields[12] == "0.98")
+        // Skip keys 0, 1
+        for _ in 0..<2 {
+            _ = try dec.decodeUInt()
+            #expect(try dec.decodeArrayHeader() == 0)
+        }
+
+        // Key 2: accel
+        #expect(try dec.decodeUInt() == 2)
+        #expect(try dec.decodeArrayHeader() == 1)
+        let accel = try dec.decodeFloat64Array()
+        #expect(accel.count == 4)
+        #expect(accel[0] == 3000.0)
+        #expect(accel[1] == 0.01)
+        #expect(accel[2] == -0.02)
+        #expect(accel[3] == 0.98)
     }
 
-    @Test func csvContainsDeviceMotionSamples() {
+    @Test func cborContainsDeviceMotionSamples() throws {
         let t = Date(timeIntervalSince1970: 4000)
 
         var workout = Workout(startDate: t)
@@ -123,30 +164,56 @@ struct WorkoutTests {
             ),
         ]
 
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
-        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        _ = try dec.decodeMapHeader()
 
-        #expect(lines.count == 2)
-        #expect(fields.count == 23)
-        #expect(fields[0] == "M")
-        #expect(fields[13] == "0.1")   // roll
-        #expect(fields[14] == "0.2")   // pitch
-        #expect(fields[15] == "0.3")   // yaw
-        #expect(fields[16] == "1.0")   // rot_x
-        #expect(fields[19] == "0.01")  // user_ax
-        #expect(fields[22] == "90.0")  // heading
+        // Skip keys 0, 1, 2
+        for _ in 0..<3 {
+            _ = try dec.decodeUInt()
+            #expect(try dec.decodeArrayHeader() == 0)
+        }
+
+        // Key 3: device motion
+        #expect(try dec.decodeUInt() == 3)
+        #expect(try dec.decodeArrayHeader() == 1)
+        let dm = try dec.decodeFloat64Array()
+        #expect(dm.count == 11)
+        #expect(dm[0] == 4000.0)
+        #expect(dm[1] == 0.1)   // roll
+        #expect(dm[2] == 0.2)   // pitch
+        #expect(dm[3] == 0.3)   // yaw
+        #expect(dm[4] == 1.0)   // rotationRateX
+        #expect(dm[5] == 2.0)   // rotationRateY
+        #expect(dm[6] == 3.0)   // rotationRateZ
+        #expect(dm[7] == 0.01)  // userAccelerationX
+        #expect(dm[8] == 0.02)  // userAccelerationY
+        #expect(dm[9] == 0.03)  // userAccelerationZ
+        #expect(dm[10] == 90.0) // heading
     }
 
-    @Test func csvSortsByTimestamp() {
+    @Test func cborTimestampPrecision() throws {
+        let t = Date(timeIntervalSince1970: 1706812345.678)
+        var workout = Workout(startDate: t)
+        workout.heartRateSamples = [
+            HeartRateSample(timestamp: t, beatsPerMinute: 90),
+        ]
+
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        _ = try dec.decodeMapHeader()
+        _ = try dec.decodeUInt()
+        _ = try dec.decodeArrayHeader()
+        let hr = try dec.decodeFloat64Array()
+        #expect(abs(hr[0] - 1706812345.678) < 0.001)
+    }
+
+    @Test func cborAllSensorTypes() throws {
         let t1 = Date(timeIntervalSince1970: 1000)
         let t2 = Date(timeIntervalSince1970: 1001)
         let t3 = Date(timeIntervalSince1970: 1002)
 
         var workout = Workout(startDate: t1)
-        workout.accelerometerSamples = [
-            AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
-        ]
         workout.heartRateSamples = [
             HeartRateSample(timestamp: t1, beatsPerMinute: 100),
         ]
@@ -157,35 +224,35 @@ struct WorkoutTests {
                 speed: 2.0, course: 90.0
             ),
         ]
-
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
-
-        #expect(lines.count == 4)
-        #expect(lines[1].hasPrefix("H,1000.0"))
-        #expect(lines[2].hasPrefix("G,1001.0"))
-        #expect(lines[3].hasPrefix("A,1002.0"))
-    }
-
-    @Test func csvTimestampPrecision() {
-        let t = Date(timeIntervalSince1970: 1706812345.678)
-        var workout = Workout(startDate: t)
-        workout.heartRateSamples = [
-            HeartRateSample(timestamp: t, beatsPerMinute: 90),
+        workout.accelerometerSamples = [
+            AccelerometerSample(timestamp: t3, x: 0.1, y: 0.2, z: 0.3),
         ]
 
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        let lines = csv.split(separator: "\n")
-        let fields = lines[1].split(separator: ",", omittingEmptySubsequences: false)
+        let data = workout.cborData()
+        var dec = CBORDecoder(data: data)
+        let mapCount = try dec.decodeMapHeader()
+        #expect(mapCount == 4)
 
-        let timestamp = Double(fields[1])!
-        #expect(abs(timestamp - 1706812345.678) < 0.001)
-    }
+        // Key 0: 1 HR sample
+        #expect(try dec.decodeUInt() == 0)
+        #expect(try dec.decodeArrayHeader() == 1)
+        _ = try dec.decodeFloat64Array()
 
-    @Test func csvEmptyWorkout() {
-        let workout = Workout(startDate: Date())
-        let csv = String(data: workout.csvData(), encoding: .utf8)!
-        #expect(csv.split(separator: "\n").count == 1)
+        // Key 1: 1 GPS sample
+        #expect(try dec.decodeUInt() == 1)
+        #expect(try dec.decodeArrayHeader() == 1)
+        _ = try dec.decodeFloat64Array()
+
+        // Key 2: 1 accel sample
+        #expect(try dec.decodeUInt() == 2)
+        #expect(try dec.decodeArrayHeader() == 1)
+        _ = try dec.decodeFloat64Array()
+
+        // Key 3: 0 DM samples
+        #expect(try dec.decodeUInt() == 3)
+        #expect(try dec.decodeArrayHeader() == 0)
+
+        #expect(dec.isAtEnd)
     }
 
     @Test func endDateTracked() {
@@ -205,7 +272,7 @@ struct WorkoutTests {
         #expect(workout.workoutId == formatter.string(from: t))
     }
 
-    @Test func flushChunkWritesCsvAndClearsArrays() throws {
+    @Test func flushChunkWritesCborAndClearsArrays() throws {
         let t = Date(timeIntervalSince1970: 1706812345)
         var workout = Workout(startDate: t)
         workout.heartRateSamples = [
@@ -225,10 +292,12 @@ struct WorkoutTests {
         #expect(workout.nextChunkIndex == 1)
         #expect(workout.chunkURLs.count == 1)
 
-        let content = try String(contentsOf: url!, encoding: .utf8)
-        #expect(content.contains("H,"))
-        #expect(content.contains("A,"))
-        #expect(url!.lastPathComponent.contains("_0.csv"))
+        // Verify the file is valid CBOR with expected structure
+        let fileData = try Data(contentsOf: url!)
+        var dec = CBORDecoder(data: fileData)
+        let mapCount = try dec.decodeMapHeader()
+        #expect(mapCount == 4)
+        #expect(url!.lastPathComponent.contains("_0.cbor"))
 
         try FileManager.default.removeItem(at: url!)
     }
@@ -257,8 +326,8 @@ struct WorkoutTests {
         ]
         let url1 = try workout.flushChunk()
 
-        #expect(url0!.lastPathComponent.contains("_0.csv"))
-        #expect(url1!.lastPathComponent.contains("_1.csv"))
+        #expect(url0!.lastPathComponent.contains("_0.cbor"))
+        #expect(url1!.lastPathComponent.contains("_1.cbor"))
         #expect(workout.nextChunkIndex == 2)
         #expect(workout.chunkURLs.count == 2)
 
@@ -701,7 +770,7 @@ struct WorkoutManagerTests {
         let workoutId = manager.currentWorkout!.workoutId
         let chunkIndex = manager.currentWorkout!.nextChunkIndex
         let blocker = documentsDir.appendingPathComponent(
-            "TEST_workout_\(workoutId)_\(chunkIndex).csv"
+            "TEST_workout_\(workoutId)_\(chunkIndex).cbor"
         )
         // Create a subdirectory inside so the path is a directory, not a file
         let sub = blocker.appendingPathComponent("x")

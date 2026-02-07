@@ -80,35 +80,49 @@ Key files:
 ### Orchestration
 
 - `WorkoutManager.swift` -- manages recording state, receives samples from all three providers
-- `Workout.swift` -- holds all sample arrays, serializes to unified CSV
+- `Workout.swift` -- holds all sample arrays, serializes to CBOR chunks
 
 **Naming:** "Workout" refers to a recorded data session (samples, chunks, export). "Session" is reserved for WCSession/connectivity (`ConnectivitySession`, `PhoneConnectivityManager.session`).
 
 ## Data export
 
-CSV format: unified file with a `type` column discriminating sample types.
+CBOR binary format (RFC 8949). Encoded/decoded by hand-rolled CBOREncoder/CBORDecoder (~240 lines total, no external production dependencies). SwiftCBOR is used in test targets only for cross-validation.
+
+**Chunk format** (written to disk every 120s during recording, and at export time):
 
 ```
-type,timestamp,bpm,lat,lon,alt,h_acc,v_acc,speed,course,ax,ay,az
-H,1706812345.678,120.0,,,,,,,,,,
-G,1706812345.700,,43.65,-79.38,76.0,5.0,8.0,3.5,180.0,,,
-A,1706812345.710,,,,,,,,,0.012,-0.023,0.981
+CBOR Map(4) {
+  0: [[ts, bpm], ...],                                       // heart rate
+  1: [[ts, lat, lon, alt, h_acc, v_acc, speed, course], ...], // GPS
+  2: [[ts, x, y, z], ...],                                   // accelerometer
+  3: [[ts, r, p, y, rx, ry, rz, ax, ay, az, hdg], ...]       // device motion
+}
 ```
 
-- `H` = heart rate (bpm column populated)
-- `G` = GPS location (lat/lon/alt/accuracy/speed/course columns populated)
-- `A` = accelerometer (ax/ay/az columns populated)
-- Rows are sorted by timestamp at export time
-- Timestamps are unix seconds with sub-second precision
+Integer keys. Each sample is a definite-length CBOR array of Float64 values.
 
-Export path: Watch -> iPhone via `WCSession.transferFile` -> iPhone saves to Documents -> user shares via `ShareLink`.
+**Merged format** (produced on iPhone after receiving all chunks):
 
-WatchConnectivity does not work between two simulators. When the transfer fails, the CSV is saved locally to the watch's Documents directory and the path is displayed on screen. Check the Xcode console for the logged path.
+```
+CBOR Map(4) {
+  0: [_ ...samples across chunks..., break],  // indefinite-length
+  1: [_ ...samples across chunks..., break],
+  2: [_ ...samples across chunks..., break],
+  3: [_ ...samples across chunks..., break]
+}
+```
+
+Extension: `.cbor`.
+
+Export path: Watch -> iPhone via `WCSession.transferFile` -> iPhone merges chunks into single `.cbor` file -> user shares via `ShareLink`.
+
+WatchConnectivity does not work between two simulators. When the transfer fails, the CBOR chunk is saved locally to the watch's Documents directory and the path is displayed on screen. Check the Xcode console for the logged path.
 
 Key files:
-- `PhoneConnectivityManager.swift` (watch side) — sends CSV via WCSession
-- `WatchConnectivityManager.swift` (iOS side) — receives and persists CSV files
-- `ExportView.swift` — handles send-to-phone with local fallback
+- `CBOREncoder.swift` / `CBORDecoder.swift` -- shared encoder/decoder (in beschluenige/Data/, shared to watch via membership exceptions)
+- `PhoneConnectivityManager.swift` (watch side) -- sends CBOR chunks via WCSession
+- `WatchConnectivityManager.swift` (iOS side) -- receives chunks, merges into single CBOR file
+- `ExportView.swift` -- handles send-to-phone with local fallback, shows progress during export
 
 ## Project configuration
 

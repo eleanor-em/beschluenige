@@ -25,75 +25,66 @@ struct Workout: Sendable {
             + accelerometerSamples.count + deviceMotionSamples.count
     }
 
-    func csvData() -> Data {
-        var csv = "type,timestamp,bpm,"
-            + "lat,lon,alt,h_acc,v_acc,speed,course,"
-            + "ax,ay,az,"
-            + "roll,pitch,yaw,rot_x,rot_y,rot_z,user_ax,user_ay,user_az,heading\n"
+    // CBOR chunk: Map(4) { 0: HR, 1: GPS, 2: accel, 3: device motion }
+    // Each value is a definite-length array of definite-length Float64 arrays.
+    func cborData() -> Data {
+        var enc = CBOREncoder()
+        enc.encodeMapHeader(count: 4)
 
-        // Build (timestamp, row-string) tuples for sorting
-        var rows: [(timestamp: Double, line: String)] = []
-
-        // Empty-field separators per group.
-        // GPS: 7 fields (lat..course) -> 6 internal commas + 1 trailing = 7
-        // Accel: 3 fields (ax,ay,az) -> 2 internal commas + 1 trailing = 3
-        // DM: 10 fields (roll..heading) -> 9 internal commas, no trailing = 9
-        let emptyGPS = ",,,,,,,"
-        let emptyAccel = ",,,"
-        let emptyDM = ",,,,,,,,,"
-
+        // Key 0: heart rate -- [[ts, bpm], ...]
+        enc.encodeUInt(0)
+        enc.encodeArrayHeader(count: heartRateSamples.count)
         for s in heartRateSamples {
-            let t = s.timestamp.timeIntervalSince1970
-            rows.append((t, "H,\(t),\(s.beatsPerMinute),\(emptyGPS)\(emptyAccel)\(emptyDM)"))
+            enc.encodeFloat64Array([
+                s.timestamp.timeIntervalSince1970,
+                s.beatsPerMinute,
+            ])
         }
 
+        // Key 1: GPS -- [[ts, lat, lon, alt, h_acc, v_acc, speed, course], ...]
+        enc.encodeUInt(1)
+        enc.encodeArrayHeader(count: locationSamples.count)
         for s in locationSamples {
-            let t = s.timestamp.timeIntervalSince1970
-            rows.append((
-                t,
-                "G,\(t),,"
-                    + "\(s.latitude),\(s.longitude),\(s.altitude),"
-                    + "\(s.horizontalAccuracy),\(s.verticalAccuracy),"
-                    + "\(s.speed),\(s.course),"
-                    + "\(emptyAccel)\(emptyDM)",
-                ))
+            enc.encodeFloat64Array([
+                s.timestamp.timeIntervalSince1970,
+                s.latitude, s.longitude, s.altitude,
+                s.horizontalAccuracy, s.verticalAccuracy,
+                s.speed, s.course,
+            ])
         }
 
+        // Key 2: accelerometer -- [[ts, x, y, z], ...]
+        enc.encodeUInt(2)
+        enc.encodeArrayHeader(count: accelerometerSamples.count)
         for s in accelerometerSamples {
-            let t = s.timestamp.timeIntervalSince1970
-            rows.append((
-                t,
-                "A,\(t),,\(emptyGPS)\(s.x),\(s.y),\(s.z),\(emptyDM)",
-                ))
+            enc.encodeFloat64Array([
+                s.timestamp.timeIntervalSince1970,
+                s.x, s.y, s.z,
+            ])
         }
 
+        // Key 3: device motion -- [[ts, r, p, y, rx, ry, rz, ax, ay, az, hdg], ...]
+        enc.encodeUInt(3)
+        enc.encodeArrayHeader(count: deviceMotionSamples.count)
         for s in deviceMotionSamples {
-            let t = s.timestamp.timeIntervalSince1970
-            rows.append((
-                t,
-                "M,\(t),,\(emptyGPS)\(emptyAccel)"
-                    + "\(s.roll),\(s.pitch),\(s.yaw),"
-                    + "\(s.rotationRateX),\(s.rotationRateY),\(s.rotationRateZ),"
-                    + "\(s.userAccelerationX),\(s.userAccelerationY),\(s.userAccelerationZ),"
-                    + "\(s.heading)",
-                ))
+            enc.encodeFloat64Array([
+                s.timestamp.timeIntervalSince1970,
+                s.roll, s.pitch, s.yaw,
+                s.rotationRateX, s.rotationRateY, s.rotationRateZ,
+                s.userAccelerationX, s.userAccelerationY, s.userAccelerationZ,
+                s.heading,
+            ])
         }
 
-        rows.sort { $0.timestamp < $1.timestamp }
-
-        for row in rows {
-            csv += row.line + "\n"
-        }
-
-        return Data(csv.utf8)
+        return enc.data
     }
 
     mutating func flushChunk() throws -> URL? {
         guard totalSampleCount > 0 else { return nil }
 
-        let data = csvData()
+        let data = cborData()
         let prefix = isRunningTests ? "TEST_" : ""
-        let fileName = "\(prefix)workout_\(workoutId)_\(nextChunkIndex).csv"
+        let fileName = "\(prefix)workout_\(workoutId)_\(nextChunkIndex).cbor"
 
         let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
