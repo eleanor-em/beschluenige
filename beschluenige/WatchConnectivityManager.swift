@@ -64,6 +64,108 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             self.receivedChunks = []
             self.fileSizeBytes = 0
         }
+
+        // Returns false if the chunk is a duplicate.
+        mutating func processChunk(_ info: ChunkTransferInfo, logger: Logger) -> Bool {
+            if receivedChunks.contains(where: { $0.chunkIndex == info.chunkIndex }) {
+                logger.warning("Duplicate chunk \(info.chunkIndex) for workout \(info.workoutId)")
+                return false
+            }
+
+            receivedChunks.append(
+                ChunkFile(chunkIndex: info.chunkIndex, fileName: info.fileName)
+            )
+            fileSizeBytes += info.chunkSizeBytes
+
+            if isComplete {
+                mergeChunks(logger: logger)
+            }
+            return true
+        }
+
+        mutating func mergeChunks(logger: Logger) {
+            let sorted = receivedChunks.sorted { $0.chunkIndex < $1.chunkIndex }
+
+            // buckets[0]=HR, [1]=GPS, [2]=accel, [3]=DM
+            var buckets: [[[Double]]] = [[], [], [], []]
+
+            for chunk in sorted {
+                guard let data = try? Data(contentsOf: chunk.fileURL) else {
+                    logger.error("Failed to read chunk file: \(chunk.fileName)")
+                    return
+                }
+                guard Self.decodeChunk(data, into: &buckets, fileName: chunk.fileName, logger: logger)
+                else { return }
+            }
+
+            // Encode merged CBOR with indefinite-length per-sensor arrays
+            var enc = CBOREncoder()
+            enc.encodeMapHeader(count: 4)
+            for (key, samples) in buckets.enumerated() {
+                enc.encodeUInt(UInt64(key))
+                enc.encodeIndefiniteArrayHeader()
+                for sample in samples {
+                    enc.encodeFloat64Array(sample)
+                }
+                enc.encodeBreak()
+            }
+
+            let merged = enc.data
+            let mergedName = "workout_\(workoutId).cbor"
+            let documentsDir = FileManager.default.urls(
+                for: .documentDirectory, in: .userDomainMask
+            ).first!
+            let mergedURL = documentsDir.appendingPathComponent(mergedName)
+
+            do {
+                try merged.write(to: mergedURL)
+                mergedFileName = mergedName
+                fileSizeBytes = Int64(merged.count)
+
+                for chunk in sorted {
+                    do {
+                        try FileManager.default.removeItem(at: chunk.fileURL)
+                    } catch {
+                        logger.error(
+                            "Failed to remove chunk file \(chunk.fileName): \(error.localizedDescription)"
+                        )
+                    }
+                }
+                logger.info("Merged \(sorted.count) chunks into \(mergedName)")
+            } catch {
+                logger.error("Failed to write merged file: \(error.localizedDescription)")
+            }
+        }
+
+        // Decode a CBOR chunk and append samples into the 4 per-sensor buckets.
+        private static func decodeChunk(
+            _ data: Data,
+            into buckets: inout [[[Double]]],
+            fileName: String,
+            logger: Logger
+        ) -> Bool {
+            do {
+                var dec = CBORDecoder(data: data)
+                let mapCount = try dec.decodeMapHeader()
+                for _ in 0..<mapCount {
+                    let key = Int(try dec.decodeUInt())
+                    guard let count = try dec.decodeArrayHeader() else {
+                        logger.error("Unexpected indefinite array in chunk: \(fileName)")
+                        return false
+                    }
+                    guard key >= 0, key < buckets.count else { continue }
+                    for _ in 0..<count {
+                        buckets[key].append(try dec.decodeFloat64Array())
+                    }
+                }
+                return true
+            } catch {
+                logger.error(
+                    "Failed to decode CBOR chunk \(fileName): \(error.localizedDescription)"
+                )
+                return false
+            }
+        }
     }
 
     private override init() {
@@ -101,125 +203,22 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
     }
 
     func processChunk(_ info: ChunkTransferInfo) {
-        var recordIndex = workouts.firstIndex(where: { $0.workoutId == info.workoutId })
+        var idx = workouts.firstIndex(where: { $0.workoutId == info.workoutId })
 
-        if recordIndex == nil {
-            let record = WorkoutRecord(
+        if idx == nil {
+            workouts.append(WorkoutRecord(
                 workoutId: info.workoutId,
                 startDate: info.startDate,
                 totalSampleCount: info.totalSampleCount,
                 totalChunks: info.totalChunks
-            )
-            workouts.append(record)
-            recordIndex = workouts.count - 1
+            ))
+            idx = workouts.count - 1
         }
 
-        guard let idx = recordIndex else { return }
-
-        // Guard against duplicate chunk
-        if workouts[idx].receivedChunks.contains(where: { $0.chunkIndex == info.chunkIndex }) {
-            logger.warning("Duplicate chunk \(info.chunkIndex) for workout \(info.workoutId)")
-            return
-        }
-
-        workouts[idx].receivedChunks.append(
-            ChunkFile(chunkIndex: info.chunkIndex, fileName: info.fileName)
-        )
-        workouts[idx].fileSizeBytes += info.chunkSizeBytes
-
-        if workouts[idx].isComplete {
-            mergeChunks(at: idx)
-        }
+        guard let idx else { return }
+        guard workouts[idx].processChunk(info, logger: logger) else { return }
 
         saveWorkouts()
-    }
-
-    // Decode a CBOR chunk and append samples into the 4 per-sensor buckets.
-    // Returns false on decode failure.
-    private func decodeChunk(
-        _ data: Data,
-        into buckets: inout [[[Double]]],
-        fileName: String
-    ) -> Bool {
-        do {
-            var dec = CBORDecoder(data: data)
-            let mapCount = try dec.decodeMapHeader()
-            for _ in 0..<mapCount {
-                let key = Int(try dec.decodeUInt())
-                guard let count = try dec.decodeArrayHeader() else {
-                    logger.error("Unexpected indefinite array in chunk: \(fileName)")
-                    return false
-                }
-                guard key >= 0, key < buckets.count else {
-                    logger.error("Unknown key \(key): \(fileName)")
-                    continue
-                }
-                for _ in 0..<count {
-                    buckets[key].append(try dec.decodeFloat64Array())
-                }
-            }
-            return true
-        } catch {
-            logger.error(
-                "Failed to decode CBOR chunk \(fileName): \(error.localizedDescription)"
-            )
-            return false
-        }
-    }
-
-    func mergeChunks(at index: Int) {
-        let record = workouts[index]
-        let sorted = record.receivedChunks.sorted { $0.chunkIndex < $1.chunkIndex }
-
-        // buckets[0]=HR, [1]=GPS, [2]=accel, [3]=DM
-        var buckets: [[[Double]]] = [[], [], [], []]
-
-        for chunk in sorted {
-            guard let data = try? Data(contentsOf: chunk.fileURL) else {
-                logger.error("Failed to read chunk file: \(chunk.fileName)")
-                return
-            }
-            guard decodeChunk(data, into: &buckets, fileName: chunk.fileName) else { return }
-        }
-
-        // Encode merged CBOR with indefinite-length per-sensor arrays
-        var enc = CBOREncoder()
-        enc.encodeMapHeader(count: 4)
-        for (key, samples) in buckets.enumerated() {
-            enc.encodeUInt(UInt64(key))
-            enc.encodeIndefiniteArrayHeader()
-            for sample in samples {
-                enc.encodeFloat64Array(sample)
-            }
-            enc.encodeBreak()
-        }
-
-        let merged = enc.data
-        let mergedName = "workout_\(record.workoutId).cbor"
-        let documentsDir = FileManager.default.urls(
-            for: .documentDirectory, in: .userDomainMask
-        ).first!
-        let mergedURL = documentsDir.appendingPathComponent(mergedName)
-
-        do {
-            try merged.write(to: mergedURL)
-            workouts[index].mergedFileName = mergedName
-            workouts[index].fileSizeBytes = Int64(merged.count)
-
-            // Delete individual chunk files
-            for chunk in sorted {
-                do {
-                    try FileManager.default.removeItem(at: chunk.fileURL)
-                } catch {
-                    logger.error(
-                        "Failed to remove chunk file \(chunk.fileName): \(error.localizedDescription)"
-                    )
-                }
-            }
-            logger.info("Merged \(sorted.count) chunks into \(mergedName)")
-        } catch {
-            logger.error("Failed to write merged file: \(error.localizedDescription)")
-        }
     }
 
     private func persistedFilesURL() -> URL {

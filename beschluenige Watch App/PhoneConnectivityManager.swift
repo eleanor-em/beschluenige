@@ -47,6 +47,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
             let fileSize: Int64 = {
                 do {
                     let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+                    // swiftlint:disable:next force_cast
                     return attrs[.size] as! Int64
                 } catch {
                     logger.error(
