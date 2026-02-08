@@ -46,7 +46,9 @@ struct ContentView: View {
                     )
                 } else {
                     ForEach(connectivityManager.workouts) { record in
-                        workoutRow(record)
+                        NavigationLink(destination: WorkoutDetailView(record: record)) {
+                            workoutRow(record)
+                        }
                     }
                 }
             }
@@ -89,14 +91,13 @@ struct ContentView: View {
             Text(record.displayName)
                 .font(.headline)
             if record.isComplete {
-                let sizeStr = String(format: "%.1f MB", record.fileSizeMB)
                 Text(
-                    "\(record.totalChunks) chunks - \(sizeStr)"
+                    "\(record.totalChunks) chunks - \(record.fileSizeBytes.formattedFileSize)"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
             } else {
-                let sizeStr = String(format: "%.1f MB", record.fileSizeMB)
+                let sizeStr = record.fileSizeBytes.formattedFileSize
                 let chunkLabel =
                     "Receiving \(record.receivedChunks.count)/\(record.totalChunks)"
                     + " chunks - \(sizeStr)"

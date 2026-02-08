@@ -10,5 +10,5 @@ struct WatchWorkoutRecord: Identifiable, Codable, Sendable {
     var transferred: Bool
     var chunkFileNames: [String]
     var displayName: String { "workout_\(workoutId)" }
-    var fileSizeMB: Double { Double(fileSizeBytes) / 1_048_576.0 }
+
 }

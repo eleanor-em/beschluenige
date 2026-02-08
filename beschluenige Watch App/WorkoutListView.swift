@@ -11,7 +11,7 @@ struct WorkoutRowView: View {
                     .font(.caption)
                 Text(
                     "\(record.chunkCount) chunks - "
-                        + String(format: "%.1f MB", record.fileSizeMB)
+                        + record.fileSizeBytes.formattedFileSize
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)

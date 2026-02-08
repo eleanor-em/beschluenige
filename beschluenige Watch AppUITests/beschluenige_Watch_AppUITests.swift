@@ -93,7 +93,7 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         app.buttons["Workouts"].tap()
 
         // The UI-testing path seeds one workout with 0 chunks
-        let chunkText = app.staticTexts["0 chunks - 0.0 MB"]
+        let chunkText = app.staticTexts["0 chunks - 0 B"]
         XCTAssertTrue(chunkText.waitForExistence(timeout: 5))
     }
 

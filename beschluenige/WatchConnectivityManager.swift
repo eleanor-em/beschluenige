@@ -36,7 +36,6 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         var fileSizeBytes: Int64
 
         var isComplete: Bool { receivedChunks.count == totalChunks }
-        var fileSizeMB: Double { Double(fileSizeBytes) / 1_048_576.0 }
 
         var mergedFileURL: URL? {
             guard let name = mergedFileName else { return nil }
@@ -46,8 +45,14 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
 
         var displayName: String {
-            let prefix = workoutId.hasPrefix("TEST_") ? "TEST_" : ""
-            return "\(prefix)workout_\(workoutId)"
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            let dateStr = formatter.string(from: startDate)
+            if workoutId.hasPrefix("TEST_") {
+                return "TEST - \(dateStr)"
+            }
+            return dateStr
         }
 
         init(
