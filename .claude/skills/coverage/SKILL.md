@@ -15,7 +15,7 @@ Run test coverage for the watchOS app and display a filtered report.
    ```
 2. Run tests with coverage enabled:
    ```
-   xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath -maximum-parallel-testing-workers 2 ./TestResults.xcresult 2>&1 > /tmp/out.log
+   xcodebuild test -project beschluenige.xcodeproj -scheme "beschluenige Watch App" -destination 'platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)' -enableCodeCoverage YES -resultBundlePath ./TestResults.xcresult -maximum-parallel-testing-workers 2 >/tmp/coverage.out 2>&1
    ```
 3. Generate the filtered coverage report. The filtered files are a workaround for limitations of xccov. No other files should ever be added.
    ```
