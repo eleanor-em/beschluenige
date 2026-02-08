@@ -18,7 +18,7 @@ final class WorkoutManager {
     var accelerometerSampleCount: Int = 0
     var deviceMotionSampleCount: Int = 0
     var chunkCount: Int = 0
-    var flushInterval: TimeInterval = 600
+    var flushInterval: TimeInterval = 300
 
     private var cumulativeHeartRateCount: Int = 0
     private var cumulativeLocationCount: Int = 0

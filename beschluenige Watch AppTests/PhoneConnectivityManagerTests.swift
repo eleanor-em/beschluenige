@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Testing
 import WatchConnectivity
@@ -61,11 +62,17 @@ struct PhoneConnectivityManagerTests {
         )
 
         #expect(result != nil)
-        #expect(result?.totalUnitCount == 2)
-        #expect(stub.sentFiles.count == 2)
+        // 1 manifest + 2 chunks = 3
+        #expect(result?.totalUnitCount == 3)
+        #expect(stub.sentFiles.count == 3)
 
-        // Verify metadata on first chunk
-        let meta0 = stub.sentFiles[0].1
+        // First sent file is the manifest
+        let manifestMeta = stub.sentFiles[0].1
+        #expect(manifestMeta["isManifest"] as? Bool == true)
+        #expect(manifestMeta["workoutId"] as? String == "2024-02-01_120000")
+
+        // Verify metadata on first chunk (index 1 in sentFiles)
+        let meta0 = stub.sentFiles[1].1
         #expect(meta0["chunkIndex"] as? Int == 0)
         #expect(meta0["totalChunks"] as? Int == 2)
         #expect(meta0["workoutId"] as? String == "2024-02-01_120000")
@@ -73,8 +80,8 @@ struct PhoneConnectivityManagerTests {
         #expect(meta0["startDate"] as? TimeInterval == startDate.timeIntervalSince1970)
         #expect((meta0["chunkSizeBytes"] as? Int64 ?? 0) > 0)
 
-        // Verify metadata on second chunk
-        let meta1 = stub.sentFiles[1].1
+        // Verify metadata on second chunk (index 2 in sentFiles)
+        let meta1 = stub.sentFiles[2].1
         #expect(meta1["chunkIndex"] as? Int == 1)
         #expect(meta1["totalChunks"] as? Int == 2)
         #expect((meta1["chunkSizeBytes"] as? Int64 ?? 0) > 0)
@@ -155,10 +162,11 @@ struct PhoneConnectivityManagerTests {
             totalSampleCount: 10
         )
 
-        // sendChunk still fires (fileSize falls back to 0)
+        // manifest + chunk still fire (fileSize/md5 fall back to 0/"")
         #expect(result != nil)
-        #expect(stub.sentFiles.count == 1)
-        let meta = stub.sentFiles[0].1
+        #expect(stub.sentFiles.count == 2)
+        // First is manifest, second is the chunk
+        let meta = stub.sentFiles[1].1
         #expect(meta["chunkSizeBytes"] as? Int64 == 0)
     }
 
@@ -195,5 +203,120 @@ struct PhoneConnectivityManagerTests {
             activationDidCompleteWith: .notActivated,
             error: NSError(domain: "test", code: 1)
         )
+    }
+
+    @Test func sendChunksSendsManifestWithCorrectChecksums() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let url1 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).cbor")
+        let data1 = Data("hello".utf8)
+        try data1.write(to: url1)
+
+        let expectedMD5 = Insecure.MD5.hash(data: data1)
+            .map { String(format: "%02x", $0) }.joined()
+
+        let result = manager.sendChunks(
+            chunkURLs: [url1],
+            workoutId: "test_md5",
+            startDate: Date(timeIntervalSince1970: 1000),
+            totalSampleCount: 5
+        )
+
+        #expect(result != nil)
+        // First file is the manifest
+        let manifestURL = stub.sentFiles[0].0
+        let manifestData = try Data(contentsOf: manifestURL)
+        let manifest = try JSONDecoder().decode(TransferManifest.self, from: manifestData)
+
+        #expect(manifest.workoutId == "test_md5")
+        #expect(manifest.totalChunks == 1)
+        #expect(manifest.totalSampleCount == 5)
+        #expect(manifest.chunks.count == 1)
+        #expect(manifest.chunks[0].fileName == url1.lastPathComponent)
+        #expect(manifest.chunks[0].sizeBytes == Int64(data1.count))
+        #expect(manifest.chunks[0].md5 == expectedMD5)
+
+        try? FileManager.default.removeItem(at: url1)
+    }
+
+    @Test func sendChunksManifestSentBeforeChunks() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let url1 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).cbor")
+        try "data".write(to: url1, atomically: true, encoding: .utf8)
+
+        _ = manager.sendChunks(
+            chunkURLs: [url1],
+            workoutId: "order_test",
+            startDate: Date(),
+            totalSampleCount: 1
+        )
+
+        #expect(stub.sentFiles.count == 2)
+        // Manifest is first
+        #expect(stub.sentFiles[0].1["isManifest"] as? Bool == true)
+        // Chunk is second
+        #expect(stub.sentFiles[1].1["chunkIndex"] as? Int == 0)
+
+        try? FileManager.default.removeItem(at: url1)
+    }
+
+    @Test func sendChunksReturnsNilWhenManifestWriteFails() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let workoutId = "write_fail_\(UUID().uuidString)"
+        // Create a directory at the manifest path so Data.write fails
+        let manifestPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("manifest_\(workoutId).json")
+        try FileManager.default.createDirectory(
+            at: manifestPath, withIntermediateDirectories: true
+        )
+
+        let url1 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).cbor")
+        try "data".write(to: url1, atomically: true, encoding: .utf8)
+
+        let result = manager.sendChunks(
+            chunkURLs: [url1],
+            workoutId: workoutId,
+            startDate: Date(),
+            totalSampleCount: 1
+        )
+
+        #expect(result == nil)
+
+        try? FileManager.default.removeItem(at: manifestPath)
+        try? FileManager.default.removeItem(at: url1)
+    }
+
+    @Test func sendChunksReturnsNilWhenManifestSendFails() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        stub.sendFileReturnsNil = true
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let url1 = FileManager.default.temporaryDirectory
+            .appendingPathComponent("chunk_0_\(UUID().uuidString).cbor")
+        try "data".write(to: url1, atomically: true, encoding: .utf8)
+
+        let result = manager.sendChunks(
+            chunkURLs: [url1],
+            workoutId: "fail_test",
+            startDate: Date(),
+            totalSampleCount: 1
+        )
+
+        // Manifest send returned nil, so sendChunks returns nil
+        #expect(result == nil)
+
+        try? FileManager.default.removeItem(at: url1)
     }
 }

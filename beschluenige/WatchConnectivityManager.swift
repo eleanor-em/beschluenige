@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import WatchConnectivity
 import os
@@ -34,6 +35,8 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         var receivedChunks: [ChunkFile]
         var mergedFileName: String?
         var fileSizeBytes: Int64
+        var manifest: TransferManifest?
+        var failedChunks: Set<Int> = []
 
         var isComplete: Bool { receivedChunks.count == totalChunks }
 
@@ -68,6 +71,41 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             self.totalChunks = totalChunks
             self.receivedChunks = []
             self.fileSizeBytes = 0
+            self.manifest = nil
+            self.failedChunks = []
+        }
+
+        mutating func verifyReceivedChunks(against manifest: TransferManifest, logger: Logger) {
+            var verified: [ChunkFile] = []
+            for chunk in receivedChunks {
+                guard chunk.chunkIndex < manifest.chunks.count else {
+                    logger.error("Chunk index \(chunk.chunkIndex) out of manifest range")
+                    failedChunks.insert(chunk.chunkIndex)
+                    continue
+                }
+                let entry = manifest.chunks[chunk.chunkIndex]
+                do {
+                    let hash = try md5Hex(of: chunk.fileURL)
+                    let attrs = try FileManager.default.attributesOfItem(atPath: chunk.fileURL.path)
+                    // swiftlint:disable:next force_cast
+                    let size = attrs[.size] as! Int64
+                    if hash == entry.md5, size == entry.sizeBytes {
+                        verified.append(chunk)
+                    } else {
+                        // swiftlint:disable:next line_length
+                        logger.error("Chunk \(chunk.chunkIndex) verify failed md5:\(hash)/\(entry.md5) size:\(size)/\(entry.sizeBytes)")
+                        failedChunks.insert(chunk.chunkIndex)
+                        try? FileManager.default.removeItem(at: chunk.fileURL)
+                    }
+                } catch {
+                    logger.error(
+                        "Failed to verify chunk \(chunk.chunkIndex): \(error.localizedDescription)"
+                    )
+                    failedChunks.insert(chunk.chunkIndex)
+                    try? FileManager.default.removeItem(at: chunk.fileURL)
+                }
+            }
+            receivedChunks = verified
         }
 
         // Returns false if the chunk is a duplicate.
@@ -226,6 +264,78 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         saveWorkouts()
     }
 
+    func processChunkWithVerification(_ info: ChunkTransferInfo) {
+        // Look up existing record
+        let idx = workouts.firstIndex(where: { $0.workoutId == info.workoutId })
+
+        if let idx, let manifest = workouts[idx].manifest {
+            // Manifest present: verify before processing
+            guard info.chunkIndex < manifest.chunks.count else {
+                logger.error("Chunk index \(info.chunkIndex) out of manifest range")
+                return
+            }
+            let entry = manifest.chunks[info.chunkIndex]
+            guard let documentsDir = FileManager.default.urls(
+                for: .documentDirectory, in: .userDomainMask
+            ).first else { return }
+            let chunkURL = documentsDir.appendingPathComponent(info.fileName)
+            do {
+                let hash = try md5Hex(of: chunkURL)
+                let attrs = try FileManager.default.attributesOfItem(atPath: chunkURL.path)
+                // swiftlint:disable:next force_cast
+                let size = attrs[.size] as! Int64
+                if hash != entry.md5 || size != entry.sizeBytes {
+                    // swiftlint:disable:next line_length
+                    logger.error("Chunk \(info.chunkIndex) verify failed md5:\(hash)/\(entry.md5) size:\(size)/\(entry.sizeBytes)")
+                    try? FileManager.default.removeItem(at: chunkURL)
+                    workouts[idx].failedChunks.insert(info.chunkIndex)
+                    saveWorkouts()
+                    return
+                }
+            } catch {
+                logger.error("Failed to verify chunk \(info.chunkIndex): \(error.localizedDescription)")
+                workouts[idx].failedChunks.insert(info.chunkIndex)
+                saveWorkouts()
+                return
+            }
+        }
+
+        // Either no manifest yet or verification passed
+        processChunk(info)
+    }
+
+    func applyManifest(_ manifest: TransferManifest, workoutId: String) {
+        var idx = workouts.firstIndex(where: { $0.workoutId == workoutId })
+
+        if idx == nil {
+            workouts.append(WorkoutRecord(
+                workoutId: manifest.workoutId,
+                startDate: manifest.startDate,
+                totalSampleCount: manifest.totalSampleCount,
+                totalChunks: manifest.totalChunks
+            ))
+            idx = workouts.count - 1
+        }
+
+        guard let idx else { return }
+        workouts[idx].manifest = manifest
+        workouts[idx].verifyReceivedChunks(against: manifest, logger: logger)
+        saveWorkouts()
+    }
+
+    func reverifyChunks(workoutId: String) {
+        guard let idx = workouts.firstIndex(where: { $0.workoutId == workoutId }),
+              let manifest = workouts[idx].manifest,
+              workouts[idx].mergedFileName == nil
+        else { return }
+        workouts[idx].failedChunks = []
+        workouts[idx].verifyReceivedChunks(against: manifest, logger: logger)
+        if workouts[idx].isComplete {
+            workouts[idx].mergeChunks(logger: logger)
+        }
+        saveWorkouts()
+    }
+
     private func persistedFilesURL() -> URL {
         FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
@@ -278,6 +388,11 @@ extension WatchConnectivityManager: WCSessionDelegate {
         fileURL: URL,
         metadata: [String: Any]?
     ) {
+        if metadata?["isManifest"] as? Bool == true {
+            processManifestFile(fileURL: fileURL, metadata: metadata)
+            return
+        }
+
         let fileName = metadata?["fileName"] as? String ?? "unknown.cbor"
         let workoutId = metadata?["workoutId"] as? String ?? "unknown"
         let chunkIndex = metadata?["chunkIndex"] as? Int ?? 0
@@ -310,10 +425,29 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 chunkSizeBytes: chunkSizeBytes
             )
             Task { @MainActor in
-                self.processChunk(info)
+                self.processChunkWithVerification(info)
             }
         } catch {
             logger.error("Failed to save received file: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated private func processManifestFile(
+        fileURL: URL,
+        metadata: [String: Any]?
+    ) {
+        let workoutId = metadata?["workoutId"] as? String ?? "unknown"
+
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let manifest = try JSONDecoder().decode(TransferManifest.self, from: data)
+            try? FileManager.default.removeItem(at: fileURL)
+
+            Task { @MainActor in
+                self.applyManifest(manifest, workoutId: workoutId)
+            }
+        } catch {
+            logger.error("Failed to decode manifest for \(workoutId): \(error.localizedDescription)")
         }
     }
 }

@@ -65,13 +65,20 @@ struct WorkoutDetailView: View {
                 }
             }
             if record.isComplete {
-                LabeledContent("Status") {
-                    Label("Complete", systemImage: "checkmark.circle.fill")
+                NavigationLink {
+                    ChunkListView(workoutId: record.workoutId)
+                } label: {
+                    LabeledContent("Status") {
+                        HStack(spacing: 4) {
+                            Text("Complete")
+                            Image(systemName: "checkmark.circle.fill")
+                        }
                         .foregroundStyle(.green)
+                    }
                 }
             } else {
                 NavigationLink {
-                    ChunkListView(record: record)
+                    ChunkListView(workoutId: record.workoutId)
                 } label: {
                     LabeledContent("Status") {
                         Text(
@@ -246,25 +253,80 @@ struct DiskFile: Identifiable {
 }
 
 struct ChunkListView: View {
-    let record: WatchConnectivityManager.WorkoutRecord
+    let workoutId: String
+    var connectivityManager = WatchConnectivityManager.shared
+
+    private var record: WatchConnectivityManager.WorkoutRecord? {
+        connectivityManager.workouts.first { $0.workoutId == workoutId }
+    }
 
     var body: some View {
-        List(0..<record.totalChunks, id: \.self) { index in
-            let received = record.receivedChunks.contains { $0.chunkIndex == index }
-            Label {
-                Text("Chunk \(index)")
-            } icon: {
-                Image(
-                    systemName: received
-                        ? "checkmark.circle.fill"
-                        : "circle.dashed"
-                )
-                .foregroundStyle(received ? .green : .orange)
+        if let record {
+            List {
+                manifestRow(record)
+                ForEach(0..<record.totalChunks, id: \.self) { index in
+                    chunkRow(record: record, index: index)
+                }
+            }
+            .navigationTitle(
+                "\(record.receivedChunks.count)/\(record.totalChunks) Chunks"
+            )
+            .refreshable {
+                connectivityManager.reverifyChunks(workoutId: workoutId)
             }
         }
-        .navigationTitle(
-            "\(record.receivedChunks.count)/\(record.totalChunks) Chunks"
-        )
+    }
+
+    private func manifestRow(_ record: WatchConnectivityManager.WorkoutRecord) -> some View {
+        Label {
+            if record.manifest != nil {
+                Text("Manifest received")
+            } else {
+                Text("Manifest pending")
+            }
+        } icon: {
+            Image(
+                systemName: record.manifest != nil
+                    ? "checkmark.circle.fill"
+                    : "circle.dashed"
+            )
+            .foregroundStyle(record.manifest != nil ? .green : .orange)
+        }
+    }
+
+    func chunkRow(record: WatchConnectivityManager.WorkoutRecord, index: Int) -> some View {
+        let received = record.receivedChunks.contains { $0.chunkIndex == index }
+        let failed = record.failedChunks.contains(index)
+        let hasManifest = record.manifest != nil
+
+        let label: String
+        let icon: String
+        let color: Color
+
+        if failed {
+            label = "Chunk \(index) - Failed"
+            icon = "xmark.circle.fill"
+            color = .red
+        } else if received, hasManifest {
+            label = "Chunk \(index) - Verified"
+            icon = "checkmark.circle.fill"
+            color = .green
+        } else if received {
+            label = "Chunk \(index) - Unverified"
+            icon = "checkmark.circle.fill"
+            color = .blue
+        } else {
+            label = "Chunk \(index)"
+            icon = "circle.dashed"
+            color = .orange
+        }
+
+        return Label {
+            Text(label)
+        } icon: {
+            Image(systemName: icon)
+                .foregroundStyle(color)
+        }
     }
 }
 

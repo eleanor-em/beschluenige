@@ -8,11 +8,12 @@ final class StubConnectivitySession: ConnectivitySession {
     var activateCalled = false
     var delegateSet = false
     var sentFiles: [(URL, [String: Any])] = []
+    var sendFileReturnsNil = false
 
     func setDelegate(_ delegate: any WCSessionDelegate) { delegateSet = true }
     func activate() { activateCalled = true }
     func sendFile(_ file: URL, metadata: [String: Any]) -> Progress? {
         sentFiles.append((file, metadata))
-        return Progress()
+        return sendFileReturnsNil ? nil : Progress()
     }
 }
