@@ -198,4 +198,159 @@ struct WatchConnectivityManagerTests {
             #expect(manager.workouts.first(where: { $0.workoutId == workoutId }) == nil)
         }
     }
+
+    // MARK: - Retransmission tests
+
+    @Test func requestRetransmissionReturnsAlreadyMerged() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "merged_\(UUID().uuidString)"
+
+        // Create two chunks and let them merge
+        for i in 0..<2 {
+            let chunk = makeCborChunk(hrTimestamp: Double(2000 + i), hrBpm: Double(120 + i))
+            try await sendChunk(
+                manager, data: chunk, workoutId: workoutId, index: i, totalChunks: 2
+            )
+        }
+
+        guard let record = manager.workouts.first(where: { $0.workoutId == workoutId }) else {
+            Issue.record("Workout not found")
+            return
+        }
+        #expect(record.mergedFileName != nil)
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .alreadyMerged)
+
+        manager.deleteWorkout(record)
+    }
+
+    @Test func requestRetransmissionReturnsNothingToRequest() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "nothing_\(UUID().uuidString)"
+
+        // Send 1 chunk of 1 total -- but don't let it merge (no manifest needed)
+        let chunk = makeCborChunk(hrTimestamp: 3000, hrBpm: 130)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 1)
+
+        // It auto-merged because isComplete was true
+        guard let record = manager.workouts.first(where: { $0.workoutId == workoutId }) else {
+            Issue.record("Workout not found")
+            return
+        }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        // Already merged after processChunk, so alreadyMerged
+        #expect(result == .alreadyMerged)
+
+        manager.deleteWorkout(record)
+    }
+
+    @Test func requestRetransmissionReturnsUnreachable() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "unreach_\(UUID().uuidString)"
+
+        // Create a workout with 2 chunks but only send 1
+        let chunk = makeCborChunk(hrTimestamp: 4000, hrBpm: 140)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
+
+        let saved = manager.isWatchReachable
+        manager.isWatchReachable = { false }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .unreachable)
+
+        manager.isWatchReachable = saved
+        if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
+            manager.deleteWorkout(record)
+        }
+    }
+
+    @Test func requestRetransmissionReturnsAccepted() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "accepted_\(UUID().uuidString)"
+
+        let chunk = makeCborChunk(hrTimestamp: 5000, hrBpm: 150)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
+
+        let savedReachable = manager.isWatchReachable
+        let savedSend = manager.sendRetransmissionRequest
+        manager.isWatchReachable = { true }
+        manager.sendRetransmissionRequest = { _ in .accepted }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .accepted)
+
+        manager.isWatchReachable = savedReachable
+        manager.sendRetransmissionRequest = savedSend
+        if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
+            manager.deleteWorkout(record)
+        }
+    }
+
+    @Test func requestRetransmissionReturnsDenied() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "denied_\(UUID().uuidString)"
+
+        let chunk = makeCborChunk(hrTimestamp: 6000, hrBpm: 160)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
+
+        let savedReachable = manager.isWatchReachable
+        let savedSend = manager.sendRetransmissionRequest
+        manager.isWatchReachable = { true }
+        manager.sendRetransmissionRequest = { _ in .denied }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .denied)
+
+        manager.isWatchReachable = savedReachable
+        manager.sendRetransmissionRequest = savedSend
+        if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
+            manager.deleteWorkout(record)
+        }
+    }
+
+    @Test func requestRetransmissionReturnsNotFound() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "notfound_\(UUID().uuidString)"
+
+        let chunk = makeCborChunk(hrTimestamp: 7000, hrBpm: 170)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
+
+        let savedReachable = manager.isWatchReachable
+        let savedSend = manager.sendRetransmissionRequest
+        manager.isWatchReachable = { true }
+        manager.sendRetransmissionRequest = { _ in .notFound }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .notFound)
+
+        manager.isWatchReachable = savedReachable
+        manager.sendRetransmissionRequest = savedSend
+        if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
+            manager.deleteWorkout(record)
+        }
+    }
+
+    @Test func requestRetransmissionReturnsUnreachableOnSendError() async throws {
+        let manager = WatchConnectivityManager.shared
+        let workoutId = "sendfail_\(UUID().uuidString)"
+
+        let chunk = makeCborChunk(hrTimestamp: 8000, hrBpm: 180)
+        try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
+
+        let savedReachable = manager.isWatchReachable
+        let savedSend = manager.sendRetransmissionRequest
+        manager.isWatchReachable = { true }
+        manager.sendRetransmissionRequest = { _ in throw NSError(domain: "test", code: 42) }
+
+        let result = await manager.requestRetransmission(workoutId: workoutId)
+        #expect(result == .unreachable)
+
+        manager.isWatchReachable = savedReachable
+        manager.sendRetransmissionRequest = savedSend
+        if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
+            manager.deleteWorkout(record)
+        }
+    }
 }

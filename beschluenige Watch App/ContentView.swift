@@ -61,6 +61,7 @@ struct ContentView: View {
             }
         }
         .task {
+            PhoneConnectivityManager.shared.workoutStore = workoutStore
             await authorizeProviders()
         }
     }

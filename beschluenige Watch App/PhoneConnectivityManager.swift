@@ -7,6 +7,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
 
     private let session: any ConnectivitySession
     private let logger = AppLogger(category: "Connectivity")
+    var workoutStore: WorkoutStore?
 
     private override init() {
         self.session = WCSession.default
@@ -69,7 +70,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         return parent
     }
 
-    private func buildManifest(
+    func buildManifest(
         chunkURLs: [URL],
         workoutId: String,
         startDate: Date,
@@ -107,7 +108,7 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         return (manifest, fileSizes)
     }
 
-    private func sendManifestFile(_ manifest: TransferManifest, workoutId: String) -> Progress? {
+    func sendManifestFile(_ manifest: TransferManifest, workoutId: String) -> Progress? {
         do {
             let data = try JSONEncoder().encode(manifest)
             let url = FileManager.default.temporaryDirectory
@@ -118,6 +119,76 @@ final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
         } catch {
             logger.error("Failed to encode/send manifest: \(error.localizedDescription)")
             return nil
+        }
+    }
+
+    func handleRetransmissionRequest(
+        _ request: RetransmissionRequest
+    ) -> RetransmissionResponse {
+        logger.info(
+            "Retransmission request: workout=\(request.workoutId)"
+                + " chunks=\(request.chunkIndices) needsManifest=\(request.needsManifest)"
+        )
+
+        guard let store = workoutStore,
+              let record = store.workouts.first(where: { $0.workoutId == request.workoutId })
+        else {
+            logger.info("Retransmission denied: workout \(request.workoutId) not found")
+            return .notFound
+        }
+
+        if let progress = store.activeTransfers[request.workoutId],
+           progress.fractionCompleted < 1.0 {
+            logger.info(
+                "Retransmission denied: transfer in progress for \(request.workoutId)"
+            )
+            return .denied
+        }
+
+        retransmitChunks(for: request, record: record)
+
+        logger.info(
+            "Retransmission accepted for \(request.workoutId):"
+                + " \(request.chunkIndices.count) chunks"
+        )
+        return .accepted
+    }
+
+    private func retransmitChunks(
+        for request: RetransmissionRequest, record: WatchWorkoutRecord
+    ) {
+        let documentsDir = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+
+        if request.needsManifest {
+            let chunkURLs = record.chunkFileNames.map {
+                documentsDir.appendingPathComponent($0)
+            }
+            let (manifest, _) = buildManifest(
+                chunkURLs: chunkURLs,
+                workoutId: request.workoutId,
+                startDate: record.startDate,
+                totalSampleCount: record.totalSampleCount
+            )
+            _ = sendManifestFile(manifest, workoutId: request.workoutId)
+        }
+
+        for index in request.chunkIndices {
+            guard index < record.chunkFileNames.count else { continue }
+            let fileName = record.chunkFileNames[index]
+            let fileURL = documentsDir.appendingPathComponent(fileName)
+            let attrs = try? FileManager.default.attributesOfItem(atPath: fileURL.path)
+            let info = ChunkTransferInfo(
+                workoutId: request.workoutId,
+                chunkIndex: index,
+                totalChunks: record.chunkCount,
+                startDate: record.startDate,
+                totalSampleCount: record.totalSampleCount,
+                fileName: fileName,
+                chunkSizeBytes: attrs?[.size] as? Int64 ?? 0
+            )
+            _ = sendChunk(fileURL: fileURL, info: info)
         }
     }
 }
@@ -142,6 +213,19 @@ extension PhoneConnectivityManager: WCSessionDelegate {
             logger.error(
                 "File transfer failed: \(error.localizedDescription)"
             )
+        }
+    }
+
+    nonisolated func session(
+        _ session: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void
+    ) {
+        guard let request = RetransmissionRequest(dictionary: message) else { return }
+
+        Task { @MainActor in
+            let response = self.handleRetransmissionRequest(request)
+            replyHandler(response.toDictionary())
         }
     }
 }

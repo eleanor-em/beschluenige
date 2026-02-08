@@ -19,6 +19,19 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
         )
     }
 
+    /// Tap Start and wait for the recording view to appear. If the first
+    /// tap does not register (slow simulator), retries automatically.
+    private func tapStart() {
+        let startButton = app.buttons["Start"]
+        let stopButton = app.buttons["Stop"]
+
+        startButton.tap()
+        if !stopButton.waitForExistence(timeout: 3) {
+            // First tap may not have registered on a slow simulator; retry
+            startButton.tap()
+        }
+    }
+
     @MainActor
     func testStartButtonExists() throws {
         XCTAssertTrue(app.buttons["Start"].exists)
@@ -44,7 +57,7 @@ final class BeschluenigeWatchAppUITests: XCTestCase {
 
     @MainActor
     func testExportAutoStartsAfterStop() throws {
-        app.buttons["Start"].tap()
+        tapStart()
         XCTAssertTrue(app.buttons["Stop"].waitForExistence(timeout: 10))
 
         app.buttons["Stop"].tap()

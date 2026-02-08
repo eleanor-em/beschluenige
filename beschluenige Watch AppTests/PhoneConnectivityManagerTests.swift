@@ -319,4 +319,306 @@ struct PhoneConnectivityManagerTests {
 
         try? FileManager.default.removeItem(at: url1)
     }
+
+    // MARK: - Retransmission tests
+
+    private func makeStoreWithWorkout(
+        workoutId: String = "test-workout",
+        chunkFileNames: [String] = ["chunk_0.cbor", "chunk_1.cbor"]
+    ) throws -> (WorkoutStore, [URL]) {
+        let persistURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_store_\(UUID().uuidString).json")
+        let store = WorkoutStore(persistenceURL: persistURL)
+
+        let documentsDir = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+        var chunkURLs: [URL] = []
+        for name in chunkFileNames {
+            let url = documentsDir.appendingPathComponent(name)
+            try "chunk data".write(to: url, atomically: true, encoding: .utf8)
+            chunkURLs.append(url)
+        }
+
+        store.registerWorkout(
+            workoutId: workoutId,
+            startDate: Date(timeIntervalSince1970: 1000),
+            chunkURLs: chunkURLs,
+            totalSampleCount: 100
+        )
+        return (store, chunkURLs)
+    }
+
+    private func cleanupFiles(_ urls: [URL]) {
+        for url in urls {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func handleRetransmissionReturnsNotFoundWhenStoreNil() {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(workoutId: "missing", chunkIndices: [0], needsManifest: false)
+        )
+        #expect(result == .notFound)
+    }
+
+    @Test func handleRetransmissionReturnsNotFoundWhenWorkoutMissing() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let persistURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_store_\(UUID().uuidString).json")
+        let store = WorkoutStore(persistenceURL: persistURL)
+        manager.workoutStore = store
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "nonexistent", chunkIndices: [0], needsManifest: false
+            )
+        )
+        #expect(result == .notFound)
+    }
+
+    @Test func handleRetransmissionReturnsDeniedWhenTransferInFlight() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let (store, chunkURLs) = try makeStoreWithWorkout()
+        manager.workoutStore = store
+
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 5
+        store.activeTransfers["test-workout"] = progress
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "test-workout", chunkIndices: [0], needsManifest: false
+            )
+        )
+        #expect(result == .denied)
+
+        cleanupFiles(chunkURLs)
+    }
+
+    @Test func handleRetransmissionReturnsAcceptedAndSendsChunks() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let (store, chunkURLs) = try makeStoreWithWorkout()
+        manager.workoutStore = store
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "test-workout", chunkIndices: [0, 1], needsManifest: false
+            )
+        )
+        #expect(result == .accepted)
+        #expect(stub.sentFiles.count == 2)
+        #expect(stub.sentFiles[0].1["chunkIndex"] as? Int == 0)
+        #expect(stub.sentFiles[1].1["chunkIndex"] as? Int == 1)
+
+        cleanupFiles(chunkURLs)
+    }
+
+    @Test func handleRetransmissionSendsManifestWhenRequested() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let (store, chunkURLs) = try makeStoreWithWorkout()
+        manager.workoutStore = store
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "test-workout", chunkIndices: [0], needsManifest: true
+            )
+        )
+        #expect(result == .accepted)
+        #expect(stub.sentFiles.count == 2)
+        #expect(stub.sentFiles[0].1["isManifest"] as? Bool == true)
+        #expect(stub.sentFiles[1].1["chunkIndex"] as? Int == 0)
+
+        cleanupFiles(chunkURLs)
+    }
+
+    @Test func handleRetransmissionAllowsWhenTransferComplete() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let (store, chunkURLs) = try makeStoreWithWorkout()
+        manager.workoutStore = store
+
+        let progress = Progress(totalUnitCount: 10)
+        progress.completedUnitCount = 10
+        store.activeTransfers["test-workout"] = progress
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "test-workout", chunkIndices: [1], needsManifest: false
+            )
+        )
+        #expect(result == .accepted)
+        #expect(stub.sentFiles.count == 1)
+
+        cleanupFiles(chunkURLs)
+    }
+
+    @Test func delegateDidReceiveMessageCallsHandler() async throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let (store, chunkURLs) = try makeStoreWithWorkout()
+        manager.workoutStore = store
+
+        let message: [String: Any] = [
+            "type": "requestChunks",
+            "workoutId": "test-workout",
+            "chunkIndices": [0],
+            "needsManifest": false,
+        ]
+
+        let reply: [String: Any] = await withCheckedContinuation { continuation in
+            manager.session(
+                WCSession.default,
+                didReceiveMessage: message,
+                replyHandler: { reply in
+                    continuation.resume(returning: reply)
+                }
+            )
+        }
+        #expect(reply["status"] as? String == "accepted")
+        #expect(stub.sentFiles.count == 1)
+
+        cleanupFiles(chunkURLs)
+    }
+
+    @Test func delegateDidReceiveMessageIgnoresUnknownType() async {
+        let stub = StubConnectivitySession()
+        let manager = PhoneConnectivityManager(session: stub)
+
+        let message: [String: Any] = ["type": "unknown"]
+
+        // replyHandler should never be called
+        manager.session(
+            WCSession.default,
+            didReceiveMessage: message,
+            replyHandler: { _ in
+                Issue.record("replyHandler should not be called for unknown message type")
+            }
+        )
+
+        // Give time for any async dispatch to execute
+        try? await Task.sleep(for: .milliseconds(100))
+    }
+
+    @Test func handleRetransmissionSendsChunkWithMissingFile() throws {
+        let stub = StubConnectivitySession()
+        stub.activationState = .activated
+        let manager = PhoneConnectivityManager(session: stub)
+
+        // Register with a file name that does not exist on disk
+        let (store, _) = try makeStoreWithWorkout(
+            chunkFileNames: ["nonexistent_chunk.cbor"]
+        )
+        // Remove the file so attributesOfItem fails
+        let documentsDir = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+        let chunkURL = documentsDir.appendingPathComponent("nonexistent_chunk.cbor")
+        try? FileManager.default.removeItem(at: chunkURL)
+
+        manager.workoutStore = store
+
+        let result = manager.handleRetransmissionRequest(
+            RetransmissionRequest(
+                workoutId: "test-workout", chunkIndices: [0], needsManifest: false
+            )
+        )
+        #expect(result == .accepted)
+        #expect(stub.sentFiles.count == 1)
+        // chunkSizeBytes falls back to 0
+        #expect(stub.sentFiles[0].1["chunkSizeBytes"] as? Int64 == 0)
+    }
+
+    @Test func retransmissionResponseToDictionary() {
+        #expect(
+            RetransmissionResponse.accepted.toDictionary()["status"] as? String == "accepted"
+        )
+        #expect(
+            RetransmissionResponse.denied.toDictionary()["status"] as? String == "denied"
+        )
+        #expect(
+            RetransmissionResponse.notFound.toDictionary()["status"] as? String == "notFound"
+        )
+    }
+
+    @Test func retransmissionRequestToDictionary() {
+        let request = RetransmissionRequest(
+            workoutId: "w1", chunkIndices: [2, 5], needsManifest: true
+        )
+        let dict = request.toDictionary()
+        #expect(dict["type"] as? String == "requestChunks")
+        #expect(dict["workoutId"] as? String == "w1")
+        #expect(dict["chunkIndices"] as? [Int] == [2, 5])
+        #expect(dict["needsManifest"] as? Bool == true)
+    }
+
+    @Test func retransmissionRequestFromDictionary() {
+        let dict: [String: Any] = [
+            "type": "requestChunks",
+            "workoutId": "w2",
+            "chunkIndices": [0, 3],
+            "needsManifest": false,
+        ]
+        let request = RetransmissionRequest(dictionary: dict)
+        #expect(request != nil)
+        #expect(request?.workoutId == "w2")
+        #expect(request?.chunkIndices == [0, 3])
+        #expect(request?.needsManifest == false)
+    }
+
+    @Test func retransmissionRequestFromMinimalDictionary() {
+        // Only type + workoutId; chunkIndices and needsManifest use defaults
+        let dict: [String: Any] = ["type": "requestChunks", "workoutId": "w3"]
+        let request = RetransmissionRequest(dictionary: dict)
+        #expect(request != nil)
+        #expect(request?.workoutId == "w3")
+        #expect(request?.chunkIndices == [])
+        #expect(request?.needsManifest == false)
+    }
+
+    @Test func retransmissionRequestFromInvalidDictionary() {
+        let dict: [String: Any] = ["type": "somethingElse"]
+        #expect(RetransmissionRequest(dictionary: dict) == nil)
+
+        let empty: [String: Any] = [:]
+        #expect(RetransmissionRequest(dictionary: empty) == nil)
+    }
+
+    @Test func retransmissionResponseFromDictionary() {
+        #expect(
+            RetransmissionResponse(dictionary: ["status": "accepted"]) == .accepted
+        )
+        #expect(
+            RetransmissionResponse(dictionary: ["status": "denied"]) == .denied
+        )
+        #expect(
+            RetransmissionResponse(dictionary: ["status": "notFound"]) == .notFound
+        )
+        #expect(
+            RetransmissionResponse(dictionary: ["status": "bogus"]) == nil
+        )
+        #expect(
+            RetransmissionResponse(dictionary: [:]) == nil
+        )
+    }
 }

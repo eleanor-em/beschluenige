@@ -237,9 +237,9 @@ struct WorkoutDetailView: View {
         let minutes = (Int(interval) % 3600) / 60
         let seconds = Int(interval) % 60
         if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+            return "\(hours)h \(minutes)m \(seconds)s"
         }
-        return String(format: "%d:%02d", minutes, seconds)
+        return "\(minutes)m \(seconds)s"
     }
 }
 
@@ -255,6 +255,23 @@ struct DiskFile: Identifiable {
 struct ChunkListView: View {
     let workoutId: String
     var connectivityManager = WatchConnectivityManager.shared
+    @State private var alertType: RetransmissionAlert?
+
+    enum RetransmissionAlert: Identifiable {
+        case alreadyMerged
+        case denied
+        case unreachable
+        case error(String)
+
+        var id: String {
+            switch self {
+            case .alreadyMerged: return "alreadyMerged"
+            case .denied: return "denied"
+            case .unreachable: return "unreachable"
+            case .error(let msg): return "error:\(msg)"
+            }
+        }
+    }
 
     private var record: WatchConnectivityManager.WorkoutRecord? {
         connectivityManager.workouts.first { $0.workoutId == workoutId }
@@ -272,7 +289,54 @@ struct ChunkListView: View {
                 "\(record.receivedChunks.count)/\(record.totalChunks) Chunks"
             )
             .refreshable {
-                connectivityManager.reverifyChunks(workoutId: workoutId)
+                let result = await connectivityManager.requestRetransmission(
+                    workoutId: workoutId
+                )
+                switch result {
+                case .accepted, .nothingToRequest:
+                    break
+                case .alreadyMerged:
+                    alertType = .alreadyMerged
+                case .denied:
+                    alertType = .denied
+                case .unreachable:
+                    alertType = .unreachable
+                case .notFound:
+                    alertType = .error("Workout not found on watch.")
+                case .error(let msg):
+                    alertType = .error(msg)
+                }
+            }
+            .alert(item: $alertType) { alert in
+                switch alert {
+                case .alreadyMerged:
+                    Alert(
+                        title: Text("Already Merged"),
+                        message: Text(
+                            "Nothing to verify -- this workout has already been merged."
+                        )
+                    )
+                case .denied:
+                    Alert(
+                        title: Text("Transfer In Progress"),
+                        message: Text(
+                            "The watch is still sending this workout."
+                                + " Please wait for it to finish."
+                        )
+                    )
+                case .unreachable:
+                    Alert(
+                        title: Text("Watch Unreachable"),
+                        message: Text(
+                            "Make sure your Apple Watch is nearby and unlocked."
+                        )
+                    )
+                case .error(let msg):
+                    Alert(
+                        title: Text("Error"),
+                        message: Text(msg)
+                    )
+                }
             }
         }
     }

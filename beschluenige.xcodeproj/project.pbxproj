@@ -80,6 +80,7 @@
 				Data/CBORDecoder.swift,
 				Data/CBOREncoder.swift,
 				Data/ChunkTransferInfo.swift,
+				Data/RetransmissionMessage.swift,
 				Data/TransferManifest.swift,
 				Util/Formatting.swift,
 			);

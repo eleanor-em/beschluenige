@@ -15,6 +15,40 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         category: "Connectivity"
     )
 
+    enum RetransmissionResult: Equatable {
+        case alreadyMerged
+        case nothingToRequest
+        case accepted
+        case denied
+        case unreachable
+        case notFound
+        case error(String)
+    }
+
+    @ObservationIgnored
+    var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse = { request in
+        let reply: [String: Any] = try await withCheckedThrowingContinuation { continuation in
+            WCSession.default.sendMessage(request.toDictionary(), replyHandler: { reply in
+                continuation.resume(returning: reply)
+            }, errorHandler: { error in
+                continuation.resume(throwing: error)
+            })
+        }
+        guard let response = RetransmissionResponse(dictionary: reply) else {
+            throw RetransmissionError.unexpectedReply
+        }
+        return response
+    }
+
+    @ObservationIgnored
+    var isWatchReachable: () -> Bool = {
+        WCSession.default.isReachable
+    }
+
+    enum RetransmissionError: Error {
+        case unexpectedReply
+    }
+
     struct ChunkFile: Codable, Sendable {
         let chunkIndex: Int
         let fileName: String
@@ -334,6 +368,56 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             workouts[idx].mergeChunks(logger: logger)
         }
         saveWorkouts()
+    }
+
+    func requestRetransmission(workoutId: String) async -> RetransmissionResult {
+        guard let record = workouts.first(where: { $0.workoutId == workoutId }) else {
+            return .error("Workout not found")
+        }
+
+        if record.mergedFileName != nil {
+            return .alreadyMerged
+        }
+
+        reverifyChunks(workoutId: workoutId)
+
+        // Re-read the record (reverify may have auto-merged)
+        guard let updated = workouts.first(where: { $0.workoutId == workoutId }) else {
+            return .error("Workout not found after reverify")
+        }
+
+        if updated.mergedFileName != nil {
+            return .nothingToRequest
+        }
+
+        let receivedIndices = Set(updated.receivedChunks.map(\.chunkIndex))
+        let allIndices = Set(0..<updated.totalChunks)
+        let missing = allIndices.subtracting(receivedIndices).union(updated.failedChunks)
+
+        if missing.isEmpty {
+            return .nothingToRequest
+        }
+
+        guard isWatchReachable() else {
+            return .unreachable
+        }
+
+        let request = RetransmissionRequest(
+            workoutId: workoutId,
+            chunkIndices: missing.sorted(),
+            needsManifest: updated.manifest == nil
+        )
+
+        do {
+            let response = try await sendRetransmissionRequest(request)
+            switch response {
+            case .accepted: return .accepted
+            case .denied: return .denied
+            case .notFound: return .notFound
+            }
+        } catch {
+            return .unreachable
+        }
     }
 
     private func persistedFilesURL() -> URL {
