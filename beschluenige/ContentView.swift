@@ -46,7 +46,9 @@ struct ContentView: View {
                     )
                 } else {
                     ForEach(connectivityManager.workouts) { record in
-                        workoutRow(record)
+                        NavigationLink(destination: WorkoutDetailView(record: record)) {
+                            workoutRow(record)
+                        }
                     }
                 }
             }

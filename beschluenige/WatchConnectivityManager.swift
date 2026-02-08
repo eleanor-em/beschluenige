@@ -46,8 +46,14 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
 
         var displayName: String {
-            let prefix = workoutId.hasPrefix("TEST_") ? "TEST_" : ""
-            return "\(prefix)workout_\(workoutId)"
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            let dateStr = formatter.string(from: startDate)
+            if workoutId.hasPrefix("TEST_") {
+                return "TEST - \(dateStr)"
+            }
+            return dateStr
         }
 
         init(
