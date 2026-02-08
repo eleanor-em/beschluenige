@@ -80,6 +80,7 @@
 				Data/CBORDecoder.swift,
 				Data/CBOREncoder.swift,
 				Data/ChunkTransferInfo.swift,
+				Util/Formatting.swift,
 			);
 			target = FDBDF2672F2F5AAF008747A7 /* beschluenige Watch App */;
 		};

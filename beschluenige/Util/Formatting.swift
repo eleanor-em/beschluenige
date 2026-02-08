@@ -8,6 +8,17 @@ import CoreLocation
 import Foundation
 import HealthKit
 
+extension Int64 {
+    var formattedFileSize: String {
+        if self >= 1_048_576 {
+            return String(format: "%.1f MB", Double(self) / 1_048_576)
+        } else if self >= 1024 {
+            return String(format: "%.1f KB", Double(self) / 1024)
+        }
+        return "\(self) B"
+    }
+}
+
 extension Int {
     var roundedWithAbbreviations: String {
         let number = Double(self)

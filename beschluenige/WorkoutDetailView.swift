@@ -64,20 +64,26 @@ struct WorkoutDetailView: View {
                     Text(formattedDuration(duration))
                 }
             }
-            LabeledContent("Status") {
-                if record.isComplete {
+            if record.isComplete {
+                LabeledContent("Status") {
                     Label("Complete", systemImage: "checkmark.circle.fill")
                         .foregroundStyle(.green)
-                } else {
-                    Text(
-                        "Receiving \(record.receivedChunks.count)"
-                            + "/\(record.totalChunks) chunks"
-                    )
-                    .foregroundStyle(.orange)
+                }
+            } else {
+                NavigationLink {
+                    ChunkListView(record: record)
+                } label: {
+                    LabeledContent("Status") {
+                        Text(
+                            "Receiving \(record.receivedChunks.count)"
+                                + "/\(record.totalChunks) chunks"
+                        )
+                        .foregroundStyle(.orange)
+                    }
                 }
             }
             LabeledContent("File Size") {
-                Text(String(format: "%.1f MB", record.fileSizeMB))
+                Text(record.fileSizeBytes.formattedFileSize)
             }
         }
     }
@@ -121,10 +127,10 @@ struct WorkoutDetailView: View {
     private func sampleCountsSection(_ summary: WorkoutSummary) -> some View {
         Section("Sensor Data") {
             LabeledContent("Accelerometer") {
-                Text(formattedCount(summary.accelerometerCount))
+                Text(summary.accelerometerCount.roundedWithAbbreviations)
             }
             LabeledContent("Device Motion") {
-                Text(formattedCount(summary.deviceMotionCount))
+                Text(summary.deviceMotionCount.roundedWithAbbreviations)
             }
         }
     }
@@ -197,115 +203,26 @@ struct WorkoutDetailView: View {
     private static func decodeSummary(from url: URL) throws -> WorkoutSummary {
         let data = try Data(contentsOf: url)
         var dec = CBORDecoder(data: data)
-
         let mapCount = try dec.decodeMapHeader()
-
-        var hrCount = 0
-        var hrMin = Double.greatestFiniteMagnitude
-        var hrMax = -Double.greatestFiniteMagnitude
-        var hrSum = 0.0
-
-        var gpsCount = 0
-        var maxSpeed = 0.0
-
-        var accelCount = 0
-        var dmCount = 0
-
-        var firstTimestamp: Double?
-        var lastTimestamp: Double?
+        var acc = SummaryAccumulator()
 
         for _ in 0..<mapCount {
             let key = Int(try dec.decodeUInt())
             let definiteCount = try dec.decodeArrayHeader()
 
             if let count = definiteCount {
-                // Definite-length (chunk format)
                 for _ in 0..<count {
-                    let sample = try dec.decodeFloat64Array()
-                    processSample(
-                        key: key, sample: sample,
-                        hrCount: &hrCount, hrMin: &hrMin, hrMax: &hrMax, hrSum: &hrSum,
-                        gpsCount: &gpsCount, maxSpeed: &maxSpeed,
-                        accelCount: &accelCount, dmCount: &dmCount,
-                        firstTimestamp: &firstTimestamp, lastTimestamp: &lastTimestamp
-                    )
+                    acc.process(key: key, sample: try dec.decodeFloat64Array())
                 }
             } else {
-                // Indefinite-length (merged format)
                 while try !dec.isBreak() {
-                    let sample = try dec.decodeFloat64Array()
-                    processSample(
-                        key: key, sample: sample,
-                        hrCount: &hrCount, hrMin: &hrMin, hrMax: &hrMax, hrSum: &hrSum,
-                        gpsCount: &gpsCount, maxSpeed: &maxSpeed,
-                        accelCount: &accelCount, dmCount: &dmCount,
-                        firstTimestamp: &firstTimestamp, lastTimestamp: &lastTimestamp
-                    )
+                    acc.process(key: key, sample: try dec.decodeFloat64Array())
                 }
                 try dec.decodeBreak()
             }
         }
 
-        return WorkoutSummary(
-            heartRateCount: hrCount,
-            heartRateMin: hrCount > 0 ? hrMin : nil,
-            heartRateMax: hrCount > 0 ? hrMax : nil,
-            heartRateAvg: hrCount > 0 ? hrSum / Double(hrCount) : nil,
-            gpsCount: gpsCount,
-            maxSpeed: gpsCount > 0 ? maxSpeed : nil,
-            accelerometerCount: accelCount,
-            deviceMotionCount: dmCount,
-            firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
-            lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) }
-        )
-    }
-
-    private static func processSample(
-        key: Int,
-        sample: [Double],
-        hrCount: inout Int,
-        hrMin: inout Double,
-        hrMax: inout Double,
-        hrSum: inout Double,
-        gpsCount: inout Int,
-        maxSpeed: inout Double,
-        accelCount: inout Int,
-        dmCount: inout Int,
-        firstTimestamp: inout Double?,
-        lastTimestamp: inout Double?
-    ) {
-        guard !sample.isEmpty else { return }
-        let ts = sample[0]
-        if firstTimestamp == nil || ts < firstTimestamp! {
-            firstTimestamp = ts
-        }
-        if lastTimestamp == nil || ts > lastTimestamp! {
-            lastTimestamp = ts
-        }
-
-        switch key {
-        case 0: // Heart rate: [ts, bpm]
-            guard sample.count >= 2 else { return }
-            let bpm = sample[1]
-            hrCount += 1
-            hrMin = min(hrMin, bpm)
-            hrMax = max(hrMax, bpm)
-            hrSum += bpm
-        case 1: // GPS: [ts, lat, lon, alt, h_acc, v_acc, speed, course]
-            gpsCount += 1
-            if sample.count >= 7 {
-                let speed = sample[6]
-                if speed >= 0 { // CLLocation reports -1 for invalid speed
-                    maxSpeed = max(maxSpeed, speed)
-                }
-            }
-        case 2: // Accelerometer
-            accelCount += 1
-        case 3: // Device motion
-            dmCount += 1
-        default:
-            break
-        }
+        return acc.makeSummary()
     }
 
     private func formattedDuration(_ interval: TimeInterval) -> String {
@@ -317,15 +234,6 @@ struct WorkoutDetailView: View {
         }
         return String(format: "%d:%02d", minutes, seconds)
     }
-
-    private func formattedCount(_ count: Int) -> String {
-        if count >= 1_000_000 {
-            return String(format: "%.1fM", Double(count) / 1_000_000)
-        } else if count >= 1_000 {
-            return String(format: "%.1fK", Double(count) / 1_000)
-        }
-        return "\(count)"
-    }
 }
 
 struct DiskFile: Identifiable {
@@ -334,13 +242,89 @@ struct DiskFile: Identifiable {
 
     var id: String { name }
 
-    var formattedSize: String {
-        if sizeBytes >= 1_048_576 {
-            return String(format: "%.1f MB", Double(sizeBytes) / 1_048_576)
-        } else if sizeBytes >= 1024 {
-            return String(format: "%.1f KB", Double(sizeBytes) / 1024)
+    var formattedSize: String { sizeBytes.formattedFileSize }
+}
+
+struct ChunkListView: View {
+    let record: WatchConnectivityManager.WorkoutRecord
+
+    var body: some View {
+        List(0..<record.totalChunks, id: \.self) { index in
+            let received = record.receivedChunks.contains { $0.chunkIndex == index }
+            Label {
+                Text("Chunk \(index)")
+            } icon: {
+                Image(
+                    systemName: received
+                        ? "checkmark.circle.fill"
+                        : "circle.dashed"
+                )
+                .foregroundStyle(received ? .green : .orange)
+            }
         }
-        return "\(sizeBytes) B"
+        .navigationTitle(
+            "\(record.receivedChunks.count)/\(record.totalChunks) Chunks"
+        )
+    }
+}
+
+private struct SummaryAccumulator {
+    var hrCount = 0
+    var hrMin = Double.greatestFiniteMagnitude
+    var hrMax = -Double.greatestFiniteMagnitude
+    var hrSum = 0.0
+    var gpsCount = 0
+    var maxSpeed = 0.0
+    var accelCount = 0
+    var dmCount = 0
+    var firstTimestamp: Double?
+    var lastTimestamp: Double?
+
+    mutating func process(key: Int, sample: [Double]) {
+        guard !sample.isEmpty else { return }
+        let ts = sample[0]
+        if firstTimestamp == nil || ts < firstTimestamp! { firstTimestamp = ts }
+        if lastTimestamp == nil || ts > lastTimestamp! { lastTimestamp = ts }
+
+        switch key {
+        case 0: processHeartRate(sample)
+        case 1: processGPS(sample)
+        case 2: accelCount += 1
+        case 3: dmCount += 1
+        default: break
+        }
+    }
+
+    private mutating func processHeartRate(_ sample: [Double]) {
+        guard sample.count >= 2 else { return }
+        let bpm = sample[1]
+        hrCount += 1
+        hrMin = min(hrMin, bpm)
+        hrMax = max(hrMax, bpm)
+        hrSum += bpm
+    }
+
+    private mutating func processGPS(_ sample: [Double]) {
+        gpsCount += 1
+        if sample.count >= 7 {
+            let speed = sample[6]
+            if speed >= 0 { maxSpeed = max(maxSpeed, speed) }
+        }
+    }
+
+    func makeSummary() -> WorkoutSummary {
+        WorkoutSummary(
+            heartRateCount: hrCount,
+            heartRateMin: hrCount > 0 ? hrMin : nil,
+            heartRateMax: hrCount > 0 ? hrMax : nil,
+            heartRateAvg: hrCount > 0 ? hrSum / Double(hrCount) : nil,
+            gpsCount: gpsCount,
+            maxSpeed: gpsCount > 0 ? maxSpeed : nil,
+            accelerometerCount: accelCount,
+            deviceMotionCount: dmCount,
+            firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
+            lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) }
+        )
     }
 }
 

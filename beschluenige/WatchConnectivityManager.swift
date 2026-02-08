@@ -36,7 +36,6 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         var fileSizeBytes: Int64
 
         var isComplete: Bool { receivedChunks.count == totalChunks }
-        var fileSizeMB: Double { Double(fileSizeBytes) / 1_048_576.0 }
 
         var mergedFileURL: URL? {
             guard let name = mergedFileName else { return nil }
