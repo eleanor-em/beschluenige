@@ -14,6 +14,7 @@ final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerD
         super.init()
         locationManager.desiredAccuracy = kCLLocationAccuracyBest
         locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.allowsBackgroundLocationUpdates = true
         locationManager.delegate = self
     }
 
