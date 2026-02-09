@@ -11,6 +11,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
     // Streaming decode state -- accessible to any iOS component.
     var decodedSummaries: [String: WorkoutSummary] = [:]
+    var decodedTimeseries: [String: WorkoutTimeseries] = [:]
     var decodingProgress: [String: Double] = [:]
     var decodingErrors: [String: String] = [:]
 
@@ -282,6 +283,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
         let id = record.workoutId
         decodedSummaries.removeValue(forKey: id)
+        decodedTimeseries.removeValue(forKey: id)
         decodingProgress.removeValue(forKey: id)
         decodingErrors.removeValue(forKey: id)
         workouts.removeAll { $0.id == record.id }
@@ -306,14 +308,18 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
         Task.detached { [self] in
             do {
-                let summary = try await Self.streamDecode(from: url) { p, s in
+                let (summary, timeseries) = try await Self.streamDecode(
+                    from: url
+                ) { p, s, ts in
                     await MainActor.run {
                         self.decodingProgress[workoutId] = p
                         self.decodedSummaries[workoutId] = s
+                        self.decodedTimeseries[workoutId] = ts
                     }
                 }
                 await MainActor.run {
                     self.decodedSummaries[workoutId] = summary
+                    self.decodedTimeseries[workoutId] = timeseries
                     self.decodingProgress.removeValue(forKey: workoutId)
                 }
             } catch {
@@ -332,12 +338,13 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
     /// samples and after each sensor type finishes.
     nonisolated private static func streamDecode(
         from url: URL,
-        onProgress: @Sendable (Double, WorkoutSummary) async -> Void
-    ) async throws -> WorkoutSummary {
+        onProgress: @Sendable (Double, WorkoutSummary, WorkoutTimeseries) async -> Void
+    ) async throws -> (WorkoutSummary, WorkoutTimeseries) {
         let data = try Data(contentsOf: url)
         let totalBytes = data.count
         var dec = CBORDecoder(data: data)
         var acc = SummaryAccumulator()
+        var tsAcc = TimeseriesAccumulator()
 
         let mapCount = try dec.decodeMapHeader()
 
@@ -348,23 +355,29 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
             if let n = definiteCount {
                 for _ in 0..<n {
-                    acc.process(key: key, sample: try dec.decodeFloat64Array())
+                    let sample = try dec.decodeFloat64Array()
+                    acc.process(key: key, sample: sample)
+                    tsAcc.process(key: key, sample: sample)
                     sampleCount += 1
                     if sampleCount.isMultiple(of: 10000) {
                         await onProgress(
                             Double(dec.offset) / Double(totalBytes),
-                            acc.makeSummary()
+                            acc.makeSummary(),
+                            tsAcc.makeTimeseries()
                         )
                     }
                 }
             } else {
                 while try !dec.isBreak() {
-                    acc.process(key: key, sample: try dec.decodeFloat64Array())
+                    let sample = try dec.decodeFloat64Array()
+                    acc.process(key: key, sample: sample)
+                    tsAcc.process(key: key, sample: sample)
                     sampleCount += 1
                     if sampleCount.isMultiple(of: 10000) {
                         await onProgress(
                             Double(dec.offset) / Double(totalBytes),
-                            acc.makeSummary()
+                            acc.makeSummary(),
+                            tsAcc.makeTimeseries()
                         )
                     }
                 }
@@ -372,11 +385,12 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             }
             await onProgress(
                 Double(dec.offset) / Double(totalBytes),
-                acc.makeSummary()
+                acc.makeSummary(),
+                tsAcc.makeTimeseries()
             )
         }
 
-        return acc.makeSummary()
+        return (acc.makeSummary(), tsAcc.makeTimeseries())
     }
 
     func processChunk(_ info: ChunkTransferInfo) {
@@ -714,5 +728,45 @@ struct SummaryAccumulator {
             firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
             lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) },
         )
+    }
+}
+
+// MARK: - Timeseries
+
+struct WorkoutTimeseries: Sendable {
+    let heartRate: [TimeseriesPoint]
+    let speed: [TimeseriesPoint]
+}
+
+struct TimeseriesAccumulator: Sendable {
+    var hrPoints: [TimeseriesPoint] = []
+    var speedPoints: [TimeseriesPoint] = []
+
+    mutating func process(key: Int, sample: [Double]) {
+        guard !sample.isEmpty else { return }
+        let date = Date(timeIntervalSince1970: sample[0])
+
+        switch key {
+        case 0:
+            if sample.count >= 2 {
+                hrPoints.append(
+                    TimeseriesPoint(id: hrPoints.count, date: date, value: sample[1])
+                )
+            }
+        case 1:
+            if sample.count >= 7, sample[6] >= 0 {
+                speedPoints.append(
+                    TimeseriesPoint(
+                        id: speedPoints.count, date: date, value: sample[6] * 3.6
+                    )
+                )
+            }
+        default:
+            break
+        }
+    }
+
+    func makeTimeseries() -> WorkoutTimeseries {
+        WorkoutTimeseries(heartRate: hrPoints, speed: speedPoints)
     }
 }
