@@ -727,7 +727,7 @@ struct SummaryAccumulator {
             deviceMotionCount: dmCount,
             firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
             lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) },
-        )
+            )
     }
 }
 
