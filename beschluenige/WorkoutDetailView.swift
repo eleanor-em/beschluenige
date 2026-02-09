@@ -4,10 +4,15 @@ struct WorkoutDetailView: View {
     let record: WatchConnectivityManager.WorkoutRecord
     var connectivityManager = WatchConnectivityManager.shared
     @State private var diskFiles: [DiskFile] = []
+    @State private var selectedTab: DetailTab = .summary
     @Environment(\.dismiss) private var dismiss
 
     private var summary: WorkoutSummary? {
         connectivityManager.decodedSummaries[record.workoutId]
+    }
+
+    private var timeseries: WorkoutTimeseries? {
+        connectivityManager.decodedTimeseries[record.workoutId]
     }
 
     private var decodingProgress: Double? {
@@ -18,7 +23,39 @@ struct WorkoutDetailView: View {
         connectivityManager.decodingErrors[record.workoutId]
     }
 
+    enum DetailTab: String, CaseIterable {
+        case summary = "Summary"
+        case charts = "Charts"
+    }
+
     var body: some View {
+        VStack(spacing: 0) {
+            Picker("View", selection: $selectedTab) {
+                ForEach(DetailTab.allCases, id: \.self) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal)
+            .padding(.top, 8)
+
+            switch selectedTab {
+            case .summary:
+                summaryList
+            case .charts:
+                chartsContent
+            }
+        }
+        .navigationTitle("Workout")
+        .task {
+            loadDiskFiles()
+            connectivityManager.decodeWorkout(record)
+        }
+    }
+
+    // MARK: - Summary Tab
+
+    private var summaryList: some View {
         List {
             metadataSection
             if let progress = decodingProgress {
@@ -49,12 +86,65 @@ struct WorkoutDetailView: View {
             filesSection
             actionsSection
         }
-        .navigationTitle("Workout")
-        .task {
-            loadDiskFiles()
-            connectivityManager.decodeWorkout(record)
+    }
+
+    // MARK: - Charts Tab
+
+    private var chartsContent: some View {
+        Group {
+            if let error = loadError {
+                VStack {
+                    Spacer()
+                    Label(error, systemImage: "exclamation.triangle")
+                        .foregroundStyle(.orange)
+                    Spacer()
+                }
+            } else if let ts = timeseries {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        if let progress = decodingProgress {
+                            ProgressView(value: progress) {
+                                Text("Loading data...")
+                            } currentValueLabel: {
+                                Text("\(Int(progress * 100))%")
+                            }
+                        }
+                        TimeseriesView(
+                            title: "Heart Rate",
+                            unit: "bpm",
+                            color: .red,
+                            points: ts.heartRate
+                        )
+                        TimeseriesView(
+                            title: "Speed",
+                            unit: "km/h",
+                            color: .blue,
+                            points: ts.speed
+                        )
+                    }
+                    .padding()
+                }
+            } else if decodingProgress != nil {
+                VStack {
+                    Spacer()
+                    ProgressView("Loading chart data...")
+                    Spacer()
+                }
+            } else {
+                VStack {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Data",
+                        systemImage: "chart.xyaxis.line",
+                        description: Text("Workout data is not available yet.")
+                    )
+                    Spacer()
+                }
+            }
         }
     }
+
+    // MARK: - Summary Sections
 
     private var metadataSection: some View {
         Section("Overview") {
@@ -172,6 +262,8 @@ struct WorkoutDetailView: View {
             }
         }
     }
+
+    // MARK: - Helpers
 
     private func loadDiskFiles() {
         guard let documentsDir = FileManager.default.urls(
