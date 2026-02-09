@@ -1,38 +1,43 @@
 import SwiftUI
-import os
 
 struct WorkoutDetailView: View {
     let record: WatchConnectivityManager.WorkoutRecord
     var connectivityManager = WatchConnectivityManager.shared
-    @State private var summary: WorkoutSummary?
-    @State private var isLoading = false
-    @State private var loadError: String?
     @State private var diskFiles: [DiskFile] = []
     @Environment(\.dismiss) private var dismiss
 
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige",
-        category: "WorkoutDetail"
-    )
+    private var summary: WorkoutSummary? {
+        connectivityManager.decodedSummaries[record.workoutId]
+    }
+
+    private var decodingProgress: Double? {
+        connectivityManager.decodingProgress[record.workoutId]
+    }
+
+    private var loadError: String? {
+        connectivityManager.decodingErrors[record.workoutId]
+    }
 
     var body: some View {
         List {
             metadataSection
-            if isLoading {
+            if let progress = decodingProgress {
                 Section {
-                    HStack {
-                        ProgressView()
-                        Text("Analyzing workout data...")
-                            .foregroundStyle(.secondary)
-                            .padding(.leading, 8)
+                    ProgressView(value: progress) {
+                        Text("Decoding workout data...")
+                    } currentValueLabel: {
+                        Text("\(Int(progress * 100))%")
                     }
+                    .padding(.vertical, 4)
                 }
-            } else if let error = loadError {
+            }
+            if let error = loadError {
                 Section {
                     Label(error, systemImage: "exclamation.triangle")
                         .foregroundStyle(.orange)
                 }
-            } else if let summary {
+            }
+            if let summary {
                 if summary.heartRateCount > 0 {
                     heartRateSection(summary)
                 }
@@ -47,7 +52,7 @@ struct WorkoutDetailView: View {
         .navigationTitle("Workout")
         .task {
             loadDiskFiles()
-            await loadSummary()
+            connectivityManager.decodeWorkout(record)
         }
     }
 
@@ -187,49 +192,6 @@ struct WorkoutDetailView: View {
                 return DiskFile(name: url.lastPathComponent, sizeBytes: Int64(size))
             }
             .sorted { $0.name < $1.name }
-    }
-
-    private func loadSummary() async {
-        guard let url = record.mergedFileURL else { return }
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            let result = try await Task.detached {
-                try Self.decodeSummary(from: url)
-            }.value
-            summary = result
-        } catch {
-            logger.error("Failed to decode workout: \(error.localizedDescription)")
-            loadError = "Could not read workout data"
-        }
-    }
-
-    private static func decodeSummary(from url: URL) throws -> WorkoutSummary {
-        let data = try Data(contentsOf: url)
-        var dec = CBORDecoder(data: data)
-        let mapCount = try dec.decodeMapHeader()
-        var acc = SummaryAccumulator()
-
-        for _ in 0..<mapCount {
-            let key = Int(try dec.decodeUInt())
-            let definiteCount = try dec.decodeArrayHeader()
-
-            if let count = definiteCount {
-                for _ in 0..<count {
-                    acc.process(key: key, sample: try dec.decodeFloat64Array())
-                }
-            } else {
-                while try !dec.isBreak() {
-                    acc.process(key: key, sample: try dec.decodeFloat64Array())
-                }
-                try dec.decodeBreak()
-            }
-        }
-
-        return acc.makeSummary()
     }
 
     private func formattedDuration(_ interval: TimeInterval) -> String {
@@ -391,84 +353,5 @@ struct ChunkListView: View {
             Image(systemName: icon)
                 .foregroundStyle(color)
         }
-    }
-}
-
-private struct SummaryAccumulator {
-    var hrCount = 0
-    var hrMin = Double.greatestFiniteMagnitude
-    var hrMax = -Double.greatestFiniteMagnitude
-    var hrSum = 0.0
-    var gpsCount = 0
-    var maxSpeed = 0.0
-    var accelCount = 0
-    var dmCount = 0
-    var firstTimestamp: Double?
-    var lastTimestamp: Double?
-
-    mutating func process(key: Int, sample: [Double]) {
-        guard !sample.isEmpty else { return }
-        let ts = sample[0]
-        if firstTimestamp == nil || ts < firstTimestamp! { firstTimestamp = ts }
-        if lastTimestamp == nil || ts > lastTimestamp! { lastTimestamp = ts }
-
-        switch key {
-        case 0: processHeartRate(sample)
-        case 1: processGPS(sample)
-        case 2: accelCount += 1
-        case 3: dmCount += 1
-        default: break
-        }
-    }
-
-    private mutating func processHeartRate(_ sample: [Double]) {
-        guard sample.count >= 2 else { return }
-        let bpm = sample[1]
-        hrCount += 1
-        hrMin = min(hrMin, bpm)
-        hrMax = max(hrMax, bpm)
-        hrSum += bpm
-    }
-
-    private mutating func processGPS(_ sample: [Double]) {
-        gpsCount += 1
-        if sample.count >= 7 {
-            let speed = sample[6]
-            if speed >= 0 { maxSpeed = max(maxSpeed, speed) }
-        }
-    }
-
-    func makeSummary() -> WorkoutSummary {
-        WorkoutSummary(
-            heartRateCount: hrCount,
-            heartRateMin: hrCount > 0 ? hrMin : nil,
-            heartRateMax: hrCount > 0 ? hrMax : nil,
-            heartRateAvg: hrCount > 0 ? hrSum / Double(hrCount) : nil,
-            gpsCount: gpsCount,
-            maxSpeed: gpsCount > 0 ? maxSpeed : nil,
-            accelerometerCount: accelCount,
-            deviceMotionCount: dmCount,
-            firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
-            lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) }
-        )
-    }
-}
-
-struct WorkoutSummary {
-    let heartRateCount: Int
-    let heartRateMin: Double?
-    let heartRateMax: Double?
-    let heartRateAvg: Double?
-    let gpsCount: Int
-    let maxSpeed: Double?
-    let accelerometerCount: Int
-    let deviceMotionCount: Int
-    let firstTimestamp: Date?
-    let lastTimestamp: Date?
-
-    var duration: TimeInterval? {
-        guard let first = firstTimestamp, let last = lastTimestamp else { return nil }
-        let d = last.timeIntervalSince(first)
-        return d > 0 ? d : nil
     }
 }
