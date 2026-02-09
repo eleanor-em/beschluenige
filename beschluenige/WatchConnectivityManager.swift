@@ -9,6 +9,11 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
     var workouts: [WorkoutRecord] = []
 
+    // Streaming decode state -- accessible to any iOS component.
+    var decodedSummaries: [String: WorkoutSummary] = [:]
+    var decodingProgress: [String: Double] = [:]
+    var decodingErrors: [String: String] = [:]
+
     private let session = WCSession.default
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige",
@@ -275,8 +280,103 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
                 )
             }
         }
+        let id = record.workoutId
+        decodedSummaries.removeValue(forKey: id)
+        decodingProgress.removeValue(forKey: id)
+        decodingErrors.removeValue(forKey: id)
         workouts.removeAll { $0.id == record.id }
         saveWorkouts()
+    }
+
+    // MARK: - Streaming Workout Decoding
+
+    /// Decodes a merged CBOR workout file incrementally, yielding partial
+    /// summaries and progress updates so the UI stays responsive.
+    func decodeWorkout(_ record: WorkoutRecord) {
+        let workoutId = record.workoutId
+
+        // Already decoded or currently decoding.
+        guard decodedSummaries[workoutId] == nil else { return }
+        guard decodingProgress[workoutId] == nil else { return }
+        guard let url = record.mergedFileURL else { return }
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        decodingProgress[workoutId] = 0
+        decodingErrors.removeValue(forKey: workoutId)
+
+        Task.detached { [self] in
+            do {
+                let summary = try await Self.streamDecode(from: url) { p, s in
+                    await MainActor.run {
+                        self.decodingProgress[workoutId] = p
+                        self.decodedSummaries[workoutId] = s
+                    }
+                }
+                await MainActor.run {
+                    self.decodedSummaries[workoutId] = summary
+                    self.decodingProgress.removeValue(forKey: workoutId)
+                }
+            } catch {
+                self.logger.error(
+                    "Failed to decode workout \(workoutId): \(error.localizedDescription)"
+                )
+                await MainActor.run {
+                    self.decodingErrors[workoutId] = "Could not read workout data"
+                    self.decodingProgress.removeValue(forKey: workoutId)
+                }
+            }
+        }
+    }
+
+    /// Reads and decodes the CBOR file, calling onProgress every 10 000
+    /// samples and after each sensor type finishes.
+    nonisolated private static func streamDecode(
+        from url: URL,
+        onProgress: @Sendable (Double, WorkoutSummary) async -> Void
+    ) async throws -> WorkoutSummary {
+        let data = try Data(contentsOf: url)
+        let totalBytes = data.count
+        var dec = CBORDecoder(data: data)
+        var acc = SummaryAccumulator()
+
+        let mapCount = try dec.decodeMapHeader()
+
+        for _ in 0..<mapCount {
+            let key = Int(try dec.decodeUInt())
+            let definiteCount = try dec.decodeArrayHeader()
+            var sampleCount = 0
+
+            if let n = definiteCount {
+                for _ in 0..<n {
+                    acc.process(key: key, sample: try dec.decodeFloat64Array())
+                    sampleCount += 1
+                    if sampleCount.isMultiple(of: 10000) {
+                        await onProgress(
+                            Double(dec.offset) / Double(totalBytes),
+                            acc.makeSummary()
+                        )
+                    }
+                }
+            } else {
+                while try !dec.isBreak() {
+                    acc.process(key: key, sample: try dec.decodeFloat64Array())
+                    sampleCount += 1
+                    if sampleCount.isMultiple(of: 10000) {
+                        await onProgress(
+                            Double(dec.offset) / Double(totalBytes),
+                            acc.makeSummary()
+                        )
+                    }
+                }
+                try dec.decodeBreak()
+            }
+            await onProgress(
+                Double(dec.offset) / Double(totalBytes),
+                acc.makeSummary()
+            )
+        }
+
+        return acc.makeSummary()
     }
 
     func processChunk(_ info: ChunkTransferInfo) {
@@ -533,5 +633,86 @@ extension WatchConnectivityManager: WCSessionDelegate {
         } catch {
             logger.error("Failed to decode manifest for \(workoutId): \(error.localizedDescription)")
         }
+    }
+}
+
+// MARK: - Workout Summary
+
+struct WorkoutSummary {
+    let heartRateCount: Int
+    let heartRateMin: Double?
+    let heartRateMax: Double?
+    let heartRateAvg: Double?
+    let gpsCount: Int
+    let maxSpeed: Double?
+    let accelerometerCount: Int
+    let deviceMotionCount: Int
+    let firstTimestamp: Date?
+    let lastTimestamp: Date?
+
+    var duration: TimeInterval? {
+        guard let first = firstTimestamp, let last = lastTimestamp else { return nil }
+        let d = last.timeIntervalSince(first)
+        return d > 0 ? d : nil
+    }
+}
+
+struct SummaryAccumulator {
+    var hrCount = 0
+    var hrMin = Double.greatestFiniteMagnitude
+    var hrMax = -Double.greatestFiniteMagnitude
+    var hrSum = 0.0
+    var gpsCount = 0
+    var maxSpeed = 0.0
+    var accelCount = 0
+    var dmCount = 0
+    var firstTimestamp: Double?
+    var lastTimestamp: Double?
+
+    mutating func process(key: Int, sample: [Double]) {
+        guard !sample.isEmpty else { return }
+        let ts = sample[0]
+        if firstTimestamp == nil || ts < firstTimestamp! { firstTimestamp = ts }
+        if lastTimestamp == nil || ts > lastTimestamp! { lastTimestamp = ts }
+
+        switch key {
+        case 0: processHeartRate(sample)
+        case 1: processGPS(sample)
+        case 2: accelCount += 1
+        case 3: dmCount += 1
+        default: break
+        }
+    }
+
+    private mutating func processHeartRate(_ sample: [Double]) {
+        guard sample.count >= 2 else { return }
+        let bpm = sample[1]
+        hrCount += 1
+        hrMin = min(hrMin, bpm)
+        hrMax = max(hrMax, bpm)
+        hrSum += bpm
+    }
+
+    private mutating func processGPS(_ sample: [Double]) {
+        gpsCount += 1
+        if sample.count >= 7 {
+            let speed = sample[6]
+            if speed >= 0 { maxSpeed = max(maxSpeed, speed) }
+        }
+    }
+
+    func makeSummary() -> WorkoutSummary {
+        WorkoutSummary(
+            heartRateCount: hrCount,
+            heartRateMin: hrCount > 0 ? hrMin : nil,
+            heartRateMax: hrCount > 0 ? hrMax : nil,
+            heartRateAvg: hrCount > 0 ? hrSum / Double(hrCount) : nil,
+            gpsCount: gpsCount,
+            maxSpeed: gpsCount > 0 ? maxSpeed : nil,
+            accelerometerCount: accelCount,
+            deviceMotionCount: dmCount,
+            firstTimestamp: firstTimestamp.map { Date(timeIntervalSince1970: $0) },
+            lastTimestamp: lastTimestamp.map { Date(timeIntervalSince1970: $0) },
+        )
     }
 }
