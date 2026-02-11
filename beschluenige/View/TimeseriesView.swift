@@ -7,24 +7,112 @@ struct TimeseriesPoint: Identifiable, Sendable {
     let value: Double
 }
 
+// MARK: - Pan/Zoom State
+
+struct ChartDomainState {
+    var visibleDomain: ClosedRange<Date>?
+    var baselineDomain: ClosedRange<Date>?
+    var gestureStartDomain: ClosedRange<Date>?
+
+    var activeDomain: ClosedRange<Date> {
+        visibleDomain ?? fullDomain ?? Date()...Date()
+    }
+
+    var fullDomain: ClosedRange<Date>?
+
+    mutating func handlePanChanged(translationWidth: CGFloat) {
+        guard let full = fullDomain else { return }
+        if gestureStartDomain == nil {
+            gestureStartDomain = activeDomain
+        }
+        guard let start = gestureStartDomain else { return }
+
+        let fullSpan = full.upperBound.timeIntervalSince(full.lowerBound)
+        let fraction = translationWidth / 300.0
+        let shift = -fraction * fullSpan
+
+        let domainSpan = start.upperBound.timeIntervalSince(start.lowerBound)
+        var newLower = start.lowerBound.addingTimeInterval(shift)
+        var newUpper = start.upperBound.addingTimeInterval(shift)
+
+        // Clamp to full domain
+        if newLower < full.lowerBound {
+            newLower = full.lowerBound
+            newUpper = newLower.addingTimeInterval(domainSpan)
+        }
+        if newUpper > full.upperBound {
+            newUpper = full.upperBound
+            newLower = newUpper.addingTimeInterval(-domainSpan)
+        }
+
+        if newLower < newUpper {
+            visibleDomain = newLower...newUpper
+            baselineDomain = visibleDomain
+        }
+    }
+
+    mutating func handlePanEnded() {
+        gestureStartDomain = nil
+    }
+
+    mutating func handleZoomChanged(magnification: CGFloat) {
+        guard let full = fullDomain else { return }
+        if baselineDomain == nil {
+            baselineDomain = activeDomain
+        }
+        guard let base = baselineDomain else { return }
+
+        let scale = 1.0 / magnification
+        let baseSpan = base.upperBound.timeIntervalSince(base.lowerBound)
+        let newSpan = max(baseSpan * scale, 1.0)
+
+        let center = base.lowerBound.addingTimeInterval(baseSpan / 2)
+        var newLower = center.addingTimeInterval(-newSpan / 2)
+        var newUpper = center.addingTimeInterval(newSpan / 2)
+
+        // Clamp to full domain
+        if newLower < full.lowerBound { newLower = full.lowerBound }
+        if newUpper > full.upperBound { newUpper = full.upperBound }
+
+        if newLower < newUpper {
+            visibleDomain = newLower...newUpper
+        }
+    }
+
+    mutating func handleZoomEnded() {
+        baselineDomain = visibleDomain
+    }
+
+    mutating func resetZoom() {
+        visibleDomain = nil
+        baselineDomain = nil
+    }
+}
+
 struct TimeseriesView: View {
     let title: String
     let unit: String
     let color: Color
     let points: [TimeseriesPoint]
 
-    @State private var visibleDomain: ClosedRange<Date>?
-    @State private var baselineDomain: ClosedRange<Date>?
-    @State private var gestureStartDomain: ClosedRange<Date>?
+    @State private var domainState: ChartDomainState
 
-    private var fullDomain: ClosedRange<Date>? {
+    init(title: String, unit: String, color: Color, points: [TimeseriesPoint]) {
+        self.title = title
+        self.unit = unit
+        self.color = color
+        self.points = points
+        _domainState = State(initialValue: ChartDomainState())
+    }
+
+    var fullDomain: ClosedRange<Date>? {
         guard let first = points.first, let last = points.last,
               first.date < last.date else { return nil }
         return first.date...last.date
     }
 
-    private var activeDomain: ClosedRange<Date> {
-        visibleDomain ?? fullDomain ?? Date()...Date()
+    var activeDomain: ClosedRange<Date> {
+        domainState.visibleDomain ?? fullDomain ?? Date()...Date()
     }
 
     var body: some View {
@@ -86,8 +174,7 @@ struct TimeseriesView: View {
         .gesture(zoomGesture)
         .onTapGesture(count: 2) {
             withAnimation(.easeInOut(duration: 0.3)) {
-                visibleDomain = nil
-                baselineDomain = nil
+                domainState.resetZoom()
             }
         }
     }
@@ -95,79 +182,34 @@ struct TimeseriesView: View {
     private var panGesture: some Gesture {
         DragGesture(minimumDistance: 10)
             .onChanged { gesture in
-                guard let full = fullDomain else { return }
-                if gestureStartDomain == nil {
-                    gestureStartDomain = activeDomain
-                }
-                guard let start = gestureStartDomain else { return }
-
-                let fullSpan = full.upperBound.timeIntervalSince(full.lowerBound)
-                let fraction = gesture.translation.width / 300.0
-                let shift = -fraction * fullSpan
-
-                let domainSpan = start.upperBound.timeIntervalSince(start.lowerBound)
-                var newLower = start.lowerBound.addingTimeInterval(shift)
-                var newUpper = start.upperBound.addingTimeInterval(shift)
-
-                // Clamp to full domain
-                if newLower < full.lowerBound {
-                    newLower = full.lowerBound
-                    newUpper = newLower.addingTimeInterval(domainSpan)
-                }
-                if newUpper > full.upperBound {
-                    newUpper = full.upperBound
-                    newLower = newUpper.addingTimeInterval(-domainSpan)
-                }
-
-                if newLower < newUpper {
-                    visibleDomain = newLower...newUpper
-                    baselineDomain = visibleDomain
-                }
+                domainState.fullDomain = fullDomain
+                domainState.handlePanChanged(translationWidth: gesture.translation.width)
             }
             .onEnded { _ in
-                gestureStartDomain = nil
+                domainState.handlePanEnded()
             }
     }
 
     private var zoomGesture: some Gesture {
         MagnifyGesture()
             .onChanged { gesture in
-                guard let full = fullDomain else { return }
-                if baselineDomain == nil {
-                    baselineDomain = activeDomain
-                }
-                guard let base = baselineDomain else { return }
-
-                let scale = 1.0 / gesture.magnification
-                let baseSpan = base.upperBound.timeIntervalSince(base.lowerBound)
-                let newSpan = max(baseSpan * scale, 1.0)
-
-                let center = base.lowerBound.addingTimeInterval(baseSpan / 2)
-                var newLower = center.addingTimeInterval(-newSpan / 2)
-                var newUpper = center.addingTimeInterval(newSpan / 2)
-
-                // Clamp to full domain
-                if newLower < full.lowerBound { newLower = full.lowerBound }
-                if newUpper > full.upperBound { newUpper = full.upperBound }
-
-                if newLower < newUpper {
-                    visibleDomain = newLower...newUpper
-                }
+                domainState.fullDomain = fullDomain
+                domainState.handleZoomChanged(magnification: gesture.magnification)
             }
             .onEnded { _ in
-                baselineDomain = visibleDomain
+                domainState.handleZoomEnded()
             }
     }
 
     // MARK: - Stats
 
-    private struct SliceStats {
+    struct SliceStats {
         let min: Double
         let max: Double
         let mean: Double
     }
 
-    private var visibleSlice: SliceStats? {
+    var visibleSlice: SliceStats? {
         let domain = activeDomain
         let filtered = points.filter { domain.contains($0.date) }
         guard !filtered.isEmpty else { return nil }

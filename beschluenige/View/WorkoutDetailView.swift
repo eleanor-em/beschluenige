@@ -7,6 +7,18 @@ struct WorkoutDetailView: View {
     @State private var selectedTab: DetailTab = .summary
     @Environment(\.dismiss) private var dismiss
 
+    init(
+        record: WatchConnectivityManager.WorkoutRecord,
+        connectivityManager: WatchConnectivityManager = .shared,
+        initialSelectedTab: DetailTab = .summary,
+        initialDiskFiles: [DiskFile] = []
+    ) {
+        self.record = record
+        self.connectivityManager = connectivityManager
+        _diskFiles = State(initialValue: initialDiskFiles)
+        _selectedTab = State(initialValue: initialSelectedTab)
+    }
+
     private var summary: WorkoutSummary? {
         connectivityManager.decodedSummaries[record.workoutId]
     }
@@ -55,7 +67,7 @@ struct WorkoutDetailView: View {
 
     // MARK: - Summary Tab
 
-    private var summaryList: some View {
+    var summaryList: some View {
         List {
             metadataSection
             if let progress = decodingProgress {
@@ -90,7 +102,7 @@ struct WorkoutDetailView: View {
 
     // MARK: - Charts Tab
 
-    private var chartsContent: some View {
+    var chartsContent: some View {
         Group {
             if let error = loadError {
                 VStack {
@@ -114,12 +126,6 @@ struct WorkoutDetailView: View {
                             unit: "bpm",
                             color: .red,
                             points: ts.heartRate
-                        )
-                        TimeseriesView(
-                            title: "Speed",
-                            unit: "km/h",
-                            color: .blue,
-                            points: ts.speed
                         )
                     }
                     .padding()
@@ -146,7 +152,7 @@ struct WorkoutDetailView: View {
 
     // MARK: - Summary Sections
 
-    private var metadataSection: some View {
+    var metadataSection: some View {
         Section("Overview") {
             LabeledContent("Date") {
                 Text(record.startDate, style: .date)
@@ -190,7 +196,7 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private func heartRateSection(_ summary: WorkoutSummary) -> some View {
+    func heartRateSection(_ summary: WorkoutSummary) -> some View {
         Section("Heart Rate") {
             LabeledContent("Samples") {
                 Text("\(summary.heartRateCount)")
@@ -213,7 +219,7 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private func gpsSection(_ summary: WorkoutSummary) -> some View {
+    func gpsSection(_ summary: WorkoutSummary) -> some View {
         Section("GPS") {
             LabeledContent("Samples") {
                 Text("\(summary.gpsCount)")
@@ -226,7 +232,7 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private func sampleCountsSection(_ summary: WorkoutSummary) -> some View {
+    func sampleCountsSection(_ summary: WorkoutSummary) -> some View {
         Section("Sensor Data") {
             LabeledContent("Accelerometer") {
                 Text(summary.accelerometerCount.roundedWithAbbreviations)
@@ -237,7 +243,7 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private var actionsSection: some View {
+    var actionsSection: some View {
         Section {
             if let mergedURL = record.mergedFileURL {
                 ShareLink(item: mergedURL) {
@@ -247,7 +253,7 @@ struct WorkoutDetailView: View {
         }
     }
 
-    private var filesSection: some View {
+    var filesSection: some View {
         Section("Files on Disk") {
             if diskFiles.isEmpty {
                 Text("No files found")
@@ -265,7 +271,7 @@ struct WorkoutDetailView: View {
 
     // MARK: - Helpers
 
-    private func loadDiskFiles() {
+    func loadDiskFiles() {
         guard let documentsDir = FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first else { return }
@@ -279,14 +285,16 @@ struct WorkoutDetailView: View {
         let id = record.workoutId
         diskFiles = contents
             .filter { $0.lastPathComponent.contains(id) }
-            .compactMap { url -> DiskFile? in
-                let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
-                return DiskFile(name: url.lastPathComponent, sizeBytes: Int64(size))
-            }
+            .compactMap { Self.diskFile(for: $0) }
             .sorted { $0.name < $1.name }
     }
 
-    private func formattedDuration(_ interval: TimeInterval) -> String {
+    static func diskFile(for url: URL) -> DiskFile {
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+        return DiskFile(name: url.lastPathComponent, sizeBytes: Int64(size))
+    }
+
+    func formattedDuration(_ interval: TimeInterval) -> String {
         let hours = Int(interval) / 3600
         let minutes = (Int(interval) % 3600) / 60
         let seconds = Int(interval) % 60
@@ -346,56 +354,15 @@ struct ChunkListView: View {
                 let result = await connectivityManager.requestRetransmission(
                     workoutId: workoutId
                 )
-                switch result {
-                case .accepted, .nothingToRequest:
-                    break
-                case .alreadyMerged:
-                    alertType = .alreadyMerged
-                case .denied:
-                    alertType = .denied
-                case .unreachable:
-                    alertType = .unreachable
-                case .notFound:
-                    alertType = .error("Workout not found on watch.")
-                case .error(let msg):
-                    alertType = .error(msg)
-                }
+                alertType = Self.alertType(for: result)
             }
             .alert(item: $alertType) { alert in
-                switch alert {
-                case .alreadyMerged:
-                    Alert(
-                        title: Text("Already Merged"),
-                        message: Text(
-                            "Nothing to verify -- this workout has already been merged."
-                        )
-                    )
-                case .denied:
-                    Alert(
-                        title: Text("Transfer In Progress"),
-                        message: Text(
-                            "The watch is still sending this workout."
-                                + " Please wait for it to finish."
-                        )
-                    )
-                case .unreachable:
-                    Alert(
-                        title: Text("Watch Unreachable"),
-                        message: Text(
-                            "Make sure your Apple Watch is nearby and unlocked."
-                        )
-                    )
-                case .error(let msg):
-                    Alert(
-                        title: Text("Error"),
-                        message: Text(msg)
-                    )
-                }
+                Self.alertFor(alert)
             }
         }
     }
 
-    private func manifestRow(_ record: WatchConnectivityManager.WorkoutRecord) -> some View {
+    func manifestRow(_ record: WatchConnectivityManager.WorkoutRecord) -> some View {
         Label {
             if record.manifest != nil {
                 Text("Manifest received")
@@ -409,6 +376,57 @@ struct ChunkListView: View {
                     : "circle.dashed"
             )
             .foregroundStyle(record.manifest != nil ? .green : .orange)
+        }
+    }
+
+    static func alertType(
+        for result: WatchConnectivityManager.RetransmissionResult
+    ) -> RetransmissionAlert? {
+        switch result {
+        case .accepted, .nothingToRequest:
+            return nil
+        case .alreadyMerged:
+            return .alreadyMerged
+        case .denied:
+            return .denied
+        case .unreachable:
+            return .unreachable
+        case .notFound:
+            return .error("Workout not found on watch.")
+        case .error(let msg):
+            return .error(msg)
+        }
+    }
+
+    static func alertFor(_ alert: RetransmissionAlert) -> Alert {
+        switch alert {
+        case .alreadyMerged:
+            Alert(
+                title: Text("Already Merged"),
+                message: Text(
+                    "Nothing to verify -- this workout has already been merged."
+                )
+            )
+        case .denied:
+            Alert(
+                title: Text("Transfer In Progress"),
+                message: Text(
+                    "The watch is still sending this workout."
+                        + " Please wait for it to finish."
+                )
+            )
+        case .unreachable:
+            Alert(
+                title: Text("Watch Unreachable"),
+                message: Text(
+                    "Make sure your Apple Watch is nearby and unlocked."
+                )
+            )
+        case .error(let msg):
+            Alert(
+                title: Text("Error"),
+                message: Text(msg)
+            )
         }
     }
 

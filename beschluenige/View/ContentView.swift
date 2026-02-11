@@ -4,6 +4,14 @@ import os
 
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
+    var isHealthDataAvailable: () -> Bool = { HKHealthStore.isHealthDataAvailable() }
+    var authorizeHealthKit: () async throws -> HKAuthorizationStatus = {
+        let store = HKHealthStore()
+        let heartRateType = HKQuantityType(.heartRate)
+        let workoutType = HKObjectType.workoutType()
+        try await store.requestAuthorization(toShare: [workoutType], read: [heartRateType])
+        return store.authorizationStatus(for: workoutType)
+    }
     @State private var healthAuthDenied = false
     @State private var workoutToDelete: WatchConnectivityManager.WorkoutRecord?
 
@@ -11,6 +19,22 @@ struct ContentView: View {
         subsystem: "net.lnor.beschluenige",
         category: "ContentView"
     )
+
+    init(
+        connectivityManager: WatchConnectivityManager = .shared,
+        initialHealthAuthDenied: Bool = false,
+        isHealthDataAvailable: (() -> Bool)? = nil,
+        authorizeHealthKit: (@Sendable () async throws -> HKAuthorizationStatus)? = nil
+    ) {
+        self.connectivityManager = connectivityManager
+        _healthAuthDenied = State(initialValue: initialHealthAuthDenied)
+        if let isHealthDataAvailable {
+            self.isHealthDataAvailable = isHealthDataAvailable
+        }
+        if let authorizeHealthKit {
+            self.authorizeHealthKit = authorizeHealthKit
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -79,12 +103,13 @@ struct ContentView: View {
             }
         }
         .task {
+            guard !CommandLine.arguments.contains("--ui-testing") else { return }
             await requestHealthKitAuthorization()
         }
     }
 
     @ViewBuilder
-    private func workoutRow(
+    func workoutRow(
         _ record: WatchConnectivityManager.WorkoutRecord
     ) -> some View {
         VStack(alignment: .leading) {
@@ -131,27 +156,19 @@ struct ContentView: View {
         }
     }
 
-    private func requestHealthKitAuthorization() async {
-        guard HKHealthStore.isHealthDataAvailable() else {
+    func requestHealthKitAuthorization() async {
+        guard isHealthDataAvailable() else {
             logger.error("HealthKit not available on this device")
             return
         }
 
-        let store = HKHealthStore()
-        let heartRateType = HKQuantityType(.heartRate)
-        let workoutType = HKObjectType.workoutType()
-
         do {
             logger.info("Requesting HealthKit authorization")
-            try await store.requestAuthorization(
-                toShare: [workoutType],
-                read: [heartRateType]
-            )
-            let wkStatus = store.authorizationStatus(for: workoutType)
-            logger.info("HealthKit authorization status: \(wkStatus.rawValue)")
-            healthAuthDenied = wkStatus != .sharingAuthorized
+            let status = try await authorizeHealthKit()
+            logger.info("HealthKit authorization completed")
+            healthAuthDenied = status != .sharingAuthorized
         } catch {
-            logger.error("HealthKit authorization error: \(error.localizedDescription)")
+            logger.error("HealthKit authorization error")
             healthAuthDenied = true
         }
     }

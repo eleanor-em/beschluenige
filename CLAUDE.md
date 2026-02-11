@@ -38,7 +38,9 @@ Key rules: short variable names are allowed (`min_length: 1`), trailing commas a
 
 ## Test coverage
 
-Use the `/coverage` skill to run tests with coverage and get a filtered summary report. 
+Use the `/coverage` skill to run tests with coverage and get a filtered summary report.
+
+SwiftUI lazy closures (ForEach content, gesture handlers, alert/contextMenu/swipeActions bodies, .task/.refreshable) only execute in live rendering -- they are NOT covered by unit tests that call `_ = view.body`. Use **UI tests** (XCTest, in `beschluenigeUITests/`) to cover these paths. Always consider adding UI tests when chasing 100% coverage on view files.
 
 ## Code style
 

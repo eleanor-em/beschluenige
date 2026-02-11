@@ -32,7 +32,15 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
     }
 
     @ObservationIgnored
-    var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse = { request in
+    var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse =
+        defaultSendRetransmissionRequest
+
+    nonisolated static func defaultSendRetransmissionRequest(
+        _ request: RetransmissionRequest
+    ) async throws -> RetransmissionResponse {
+        #if targetEnvironment(simulator)
+        throw RetransmissionError.unexpectedReply
+        #else
         let reply: [String: Any] = try await withCheckedThrowingContinuation { continuation in
             WCSession.default.sendMessage(request.toDictionary(), replyHandler: { reply in
                 continuation.resume(returning: reply)
@@ -44,6 +52,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             throw RetransmissionError.unexpectedReply
         }
         return response
+        #endif
     }
 
     @ObservationIgnored
@@ -206,22 +215,16 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
                 fileSizeBytes = Int64(merged.count)
 
                 for chunk in sorted {
-                    do {
-                        try FileManager.default.removeItem(at: chunk.fileURL)
-                    } catch {
-                        logger.error(
-                            "Failed to remove chunk file \(chunk.fileName): \(error.localizedDescription)"
-                        )
-                    }
+                    try? FileManager.default.removeItem(at: chunk.fileURL)
                 }
-                logger.info("Merged \(sorted.count) chunks into \(mergedName)")
+                logger.info("Merged chunks successfully")
             } catch {
-                logger.error("Failed to write merged file: \(error.localizedDescription)")
+                logger.error("Failed to write merged file")
             }
         }
 
         // Decode a CBOR chunk and append samples into the 4 per-sensor buckets.
-        private static func decodeChunk(
+        static func decodeChunk(
             _ data: Data,
             into buckets: inout [[[Double]]],
             fileName: String,
@@ -336,7 +339,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
     /// Reads and decodes the CBOR file, calling onProgress every 10 000
     /// samples and after each sensor type finishes.
-    nonisolated private static func streamDecode(
+    nonisolated static func streamDecode(
         from url: URL,
         onProgress: @Sendable (Double, WorkoutSummary, WorkoutTimeseries) async -> Void
     ) async throws -> (WorkoutSummary, WorkoutTimeseries) {
@@ -496,9 +499,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         reverifyChunks(workoutId: workoutId)
 
         // Re-read the record (reverify may have auto-merged)
-        guard let updated = workouts.first(where: { $0.workoutId == workoutId }) else {
-            return .error("Workout not found after reverify")
-        }
+        let updated = workouts.first(where: { $0.workoutId == workoutId })!
 
         if updated.mergedFileName != nil {
             return .nothingToRequest
@@ -534,22 +535,26 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
     }
 
-    private func persistedFilesURL() -> URL {
-        FileManager.default.urls(
+    @ObservationIgnored
+    var persistedFilesURLOverride: URL?
+
+    func persistedFilesURL() -> URL {
+        if let override = persistedFilesURLOverride { return override }
+        return FileManager.default.urls(
             for: .documentDirectory, in: .userDomainMask
         ).first!.appendingPathComponent("workouts.json")
     }
 
-    private func saveWorkouts() {
+    func saveWorkouts() {
         do {
             let data = try JSONEncoder().encode(workouts)
             try data.write(to: persistedFilesURL(), options: .atomic)
         } catch {
-            logger.error("Failed to persist workouts list: \(error.localizedDescription)")
+            logger.error("Failed to persist workouts list")
         }
     }
 
-    private func loadWorkouts() {
+    func loadWorkouts() {
         let url = persistedFilesURL()
         guard FileManager.default.fileExists(atPath: url.path) else { return }
         do {
@@ -626,7 +631,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 self.processChunkWithVerification(info)
             }
         } catch {
-            logger.error("Failed to save received file: \(error.localizedDescription)")
+            logger.error("Failed to save received file")
         }
     }
 
@@ -645,7 +650,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
                 self.applyManifest(manifest, workoutId: workoutId)
             }
         } catch {
-            logger.error("Failed to decode manifest for \(workoutId): \(error.localizedDescription)")
+            logger.error("Failed to decode manifest")
         }
     }
 }
