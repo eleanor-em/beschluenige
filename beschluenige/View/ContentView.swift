@@ -60,6 +60,13 @@ struct ContentView: View {
                     }
                 }
 
+                ForEach(connectivityManager.workouts) { record in
+                    NavigationLink(destination: WorkoutDetailView(record: record)) {
+                        workoutRow(record)
+                    }
+                }
+            }
+            .overlay {
                 if connectivityManager.workouts.isEmpty {
                     ContentUnavailableView(
                         "No Workouts",
@@ -68,12 +75,6 @@ struct ContentView: View {
                             "Record heart rate data on your Apple Watch, then export it here."
                         )
                     )
-                } else {
-                    ForEach(connectivityManager.workouts) { record in
-                        NavigationLink(destination: WorkoutDetailView(record: record)) {
-                            workoutRow(record)
-                        }
-                    }
                 }
             }
             .navigationTitle("beschluenige")
@@ -115,12 +116,15 @@ struct ContentView: View {
         VStack(alignment: .leading) {
             Text(record.displayName)
                 .font(.headline)
-            if record.isComplete {
+            if record.mergedFileName != nil {
                 Text(
                     "\(record.totalChunks) chunks - \(record.fileSizeBytes.formattedFileSize)"
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            } else if record.isComplete {
+                Text("Merging chunks...")
+                    .font(.caption)
             } else {
                 let sizeStr = record.fileSizeBytes.formattedFileSize
                 let chunkLabel =
@@ -128,7 +132,6 @@ struct ContentView: View {
                     + " chunks - \(sizeStr)"
                 Text(chunkLabel)
                     .font(.caption)
-
             }
         }
         .contextMenu {

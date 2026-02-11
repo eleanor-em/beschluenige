@@ -168,15 +168,26 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
                 ChunkFile(chunkIndex: info.chunkIndex, fileName: info.fileName)
             )
             fileSizeBytes += info.chunkSizeBytes
-
-            if isComplete {
-                mergeChunks(logger: logger)
-            }
             return true
         }
 
         mutating func mergeChunks(logger: Logger) {
-            let sorted = receivedChunks.sorted { $0.chunkIndex < $1.chunkIndex }
+            guard let result = Self.performMerge(
+                chunks: receivedChunks, workoutId: workoutId, logger: logger
+            ) else { return }
+            mergedFileName = result.mergedName
+            fileSizeBytes = result.fileSize
+        }
+
+        /// Performs the actual merge work: reads chunk files, decodes CBOR,
+        /// re-encodes into a single merged file, and cleans up chunk files.
+        /// Returns nil on failure.
+        nonisolated static func performMerge(
+            chunks: [ChunkFile],
+            workoutId: String,
+            logger: Logger
+        ) -> (mergedName: String, fileSize: Int64)? {
+            let sorted = chunks.sorted { $0.chunkIndex < $1.chunkIndex }
 
             // buckets[0]=HR, [1]=GPS, [2]=accel, [3]=DM
             var buckets: [[[Double]]] = [[], [], [], []]
@@ -184,10 +195,10 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
             for chunk in sorted {
                 guard let data = try? Data(contentsOf: chunk.fileURL) else {
                     logger.error("Failed to read chunk file: \(chunk.fileName)")
-                    return
+                    return nil
                 }
-                guard Self.decodeChunk(data, into: &buckets, fileName: chunk.fileName, logger: logger)
-                else { return }
+                guard decodeChunk(data, into: &buckets, fileName: chunk.fileName, logger: logger)
+                else { return nil }
             }
 
             // Encode merged CBOR with indefinite-length per-sensor arrays
@@ -211,15 +222,14 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
 
             do {
                 try merged.write(to: mergedURL)
-                mergedFileName = mergedName
-                fileSizeBytes = Int64(merged.count)
-
                 for chunk in sorted {
                     try? FileManager.default.removeItem(at: chunk.fileURL)
                 }
                 logger.info("Merged chunks successfully")
+                return (mergedName, Int64(merged.count))
             } catch {
                 logger.error("Failed to write merged file")
+                return nil
             }
         }
 
@@ -413,6 +423,37 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         guard workouts[idx].processChunk(info, logger: logger) else { return }
 
         saveWorkouts()
+
+        if workouts[idx].isComplete {
+            mergeChunksAsync(workoutId: info.workoutId)
+        }
+    }
+
+    func mergeChunksAsync(workoutId: String) {
+        guard !mergingWorkouts.contains(workoutId) else { return }
+        guard let idx = workouts.firstIndex(where: { $0.workoutId == workoutId }),
+              workouts[idx].isComplete,
+              workouts[idx].mergedFileName == nil
+        else { return }
+
+        mergingWorkouts.insert(workoutId)
+        let chunks = workouts[idx].receivedChunks
+        let log = logger
+
+        Task.detached {
+            let result = WorkoutRecord.performMerge(
+                chunks: chunks, workoutId: workoutId, logger: log
+            )
+            await MainActor.run { [self] in
+                mergingWorkouts.remove(workoutId)
+                guard let result else { return }
+                guard let i = workouts.firstIndex(where: { $0.workoutId == workoutId })
+                else { return }
+                workouts[i].mergedFileName = result.mergedName
+                workouts[i].fileSizeBytes = result.fileSize
+                saveWorkouts()
+            }
+        }
     }
 
     func processChunkWithVerification(_ info: ChunkTransferInfo) {
@@ -487,53 +528,8 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         saveWorkouts()
     }
 
-    func requestRetransmission(workoutId: String) async -> RetransmissionResult {
-        guard let record = workouts.first(where: { $0.workoutId == workoutId }) else {
-            return .error("Workout not found")
-        }
-
-        if record.mergedFileName != nil {
-            return .alreadyMerged
-        }
-
-        reverifyChunks(workoutId: workoutId)
-
-        // Re-read the record (reverify may have auto-merged)
-        let updated = workouts.first(where: { $0.workoutId == workoutId })!
-
-        if updated.mergedFileName != nil {
-            return .nothingToRequest
-        }
-
-        let receivedIndices = Set(updated.receivedChunks.map(\.chunkIndex))
-        let allIndices = Set(0..<updated.totalChunks)
-        let missing = allIndices.subtracting(receivedIndices).union(updated.failedChunks)
-
-        if missing.isEmpty {
-            return .nothingToRequest
-        }
-
-        guard isWatchReachable() else {
-            return .unreachable
-        }
-
-        let request = RetransmissionRequest(
-            workoutId: workoutId,
-            chunkIndices: missing.sorted(),
-            needsManifest: updated.manifest == nil
-        )
-
-        do {
-            let response = try await sendRetransmissionRequest(request)
-            switch response {
-            case .accepted: return .accepted
-            case .denied: return .denied
-            case .notFound: return .notFound
-            }
-        } catch {
-            return .unreachable
-        }
-    }
+    @ObservationIgnored
+    private var mergingWorkouts: Set<String> = []
 
     @ObservationIgnored
     var persistedFilesURLOverride: URL?
@@ -773,5 +769,57 @@ struct TimeseriesAccumulator: Sendable {
 
     func makeTimeseries() -> WorkoutTimeseries {
         WorkoutTimeseries(heartRate: hrPoints, speed: speedPoints)
+    }
+}
+
+// MARK: - Retransmission
+
+extension WatchConnectivityManager {
+    func requestRetransmission(workoutId: String) async -> RetransmissionResult {
+        guard let record = workouts.first(where: { $0.workoutId == workoutId }) else {
+            return .error("Workout not found")
+        }
+
+        if record.mergedFileName != nil {
+            return .alreadyMerged
+        }
+
+        reverifyChunks(workoutId: workoutId)
+
+        // Re-read the record (reverify may have auto-merged)
+        let updated = workouts.first(where: { $0.workoutId == workoutId })!
+
+        if updated.mergedFileName != nil {
+            return .nothingToRequest
+        }
+
+        let receivedIndices = Set(updated.receivedChunks.map(\.chunkIndex))
+        let allIndices = Set(0..<updated.totalChunks)
+        let missing = allIndices.subtracting(receivedIndices).union(updated.failedChunks)
+
+        if missing.isEmpty {
+            return .nothingToRequest
+        }
+
+        guard isWatchReachable() else {
+            return .unreachable
+        }
+
+        let request = RetransmissionRequest(
+            workoutId: workoutId,
+            chunkIndices: missing.sorted(),
+            needsManifest: updated.manifest == nil
+        )
+
+        do {
+            let response = try await sendRetransmissionRequest(request)
+            switch response {
+            case .accepted: return .accepted
+            case .denied: return .denied
+            case .notFound: return .notFound
+            }
+        } catch {
+            return .unreachable
+        }
     }
 }

@@ -95,6 +95,12 @@ final class BeschluenigeUITests: XCTestCase {
             ).firstMatch.waitForExistence(timeout: 2),
             "Should show the complete workout with chunk count"
         )
+
+        // The merging workout should show "Merging chunks..." text
+        XCTAssertTrue(
+            app.staticTexts["Merging chunks..."].waitForExistence(timeout: 2),
+            "Should show a merging workout with 'Merging chunks...' text"
+        )
     }
 
     @MainActor

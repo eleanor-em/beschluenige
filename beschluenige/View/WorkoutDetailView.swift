@@ -165,7 +165,7 @@ struct WorkoutDetailView: View {
                     Text(formattedDuration(duration))
                 }
             }
-            if record.isComplete {
+            if record.mergedFileName != nil {
                 NavigationLink {
                     ChunkListView(workoutId: record.workoutId)
                 } label: {
@@ -175,6 +175,18 @@ struct WorkoutDetailView: View {
                             Image(systemName: "checkmark.circle.fill")
                         }
                         .foregroundStyle(.green)
+                    }
+                }
+            } else if record.isComplete {
+                NavigationLink {
+                    ChunkListView(workoutId: record.workoutId)
+                } label: {
+                    LabeledContent("Status") {
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Merging chunks...")
+                        }
                     }
                 }
             } else {

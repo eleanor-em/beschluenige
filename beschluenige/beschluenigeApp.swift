@@ -37,8 +37,33 @@ struct BeschluenigeApp: App {
         ]
         incomplete.fileSizeBytes = 150
 
-        manager.workouts = [complete, incomplete]
+        let mergingId = "UITEST-merging"
+        var merging = WatchConnectivityManager.WorkoutRecord(
+            workoutId: mergingId,
+            startDate: startDate.addingTimeInterval(7200),
+            totalSampleCount: 100,
+            totalChunks: 2
+        )
+        merging.receivedChunks = [
+            .init(chunkIndex: 0, fileName: "chunk_\(mergingId)_0.cbor"),
+            .init(chunkIndex: 1, fileName: "chunk_\(mergingId)_1.cbor"),
+        ]
+        merging.fileSizeBytes = 200
 
+        manager.workouts = [complete, incomplete, merging]
+
+        seedDecodedData(
+            manager: manager, completeId: completeId,
+            startDate: startDate, hrSamples: hrSamples
+        )
+    }
+
+    private func seedDecodedData(
+        manager: WatchConnectivityManager,
+        completeId: String,
+        startDate: Date,
+        hrSamples: [[Double]]
+    ) {
         manager.decodedSummaries[completeId] = WorkoutSummary(
             heartRateCount: 50,
             heartRateMin: 80,
