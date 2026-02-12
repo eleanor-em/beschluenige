@@ -2,7 +2,7 @@ import Foundation
 import os
 @testable import beschluenige_Watch_App
 
-final class FallbackTimerManager: @unchecked Sendable {
+final class FallbackTimerManager {
     var onFallbackActivated: (@Sendable () -> Void)?
     private var timeoutTimer: Timer?
     private var fallbackTimer: Timer?

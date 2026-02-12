@@ -2,7 +2,7 @@ import Foundation
 import os
 @testable import beschluenige_Watch_App
 
-final class MockMotionProvider: DeviceMotionProvider, @unchecked Sendable {
+@MainActor final class MockMotionProvider: DeviceMotionProvider {
     private var realProvider: (any DeviceMotionProvider)?
     private let realProviderFactory: @Sendable () -> any DeviceMotionProvider
     private var accelHandler: (@Sendable ([AccelerometerSample]) -> Void)?
@@ -39,13 +39,15 @@ final class MockMotionProvider: DeviceMotionProvider, @unchecked Sendable {
         do {
             try provider.startMonitoring(
                 accelerometerHandler: { [weak self] samples in
-                    guard let self else { return }
-                    fallbackManager.markRealSampleReceived()
+                    MainActor.assumeIsolated {
+                        self?.fallbackManager.markRealSampleReceived()
+                    }
                     accelerometerHandler(samples)
                 },
                 deviceMotionHandler: { [weak self] samples in
-                    guard let self else { return }
-                    fallbackManager.markRealSampleReceived()
+                    MainActor.assumeIsolated {
+                        self?.fallbackManager.markRealSampleReceived()
+                    }
                     deviceMotionHandler(samples)
                 }
             )
@@ -59,10 +61,12 @@ final class MockMotionProvider: DeviceMotionProvider, @unchecked Sendable {
         }
 
         fallbackManager.startTimeout { [weak self] in
-            guard let self else { return }
-            let now = Date()
-            accelHandler?(SampleGenerators.generateAccelBatch(at: now))
-            dmHandler?(SampleGenerators.generateDeviceMotionBatch(at: now))
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = Date()
+                self.accelHandler?(SampleGenerators.generateAccelBatch(at: now))
+                self.dmHandler?(SampleGenerators.generateDeviceMotionBatch(at: now))
+            }
         }
     }
 

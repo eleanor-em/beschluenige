@@ -1,6 +1,6 @@
 import Foundation
 
-struct RetransmissionRequest {
+nonisolated struct RetransmissionRequest {
     let workoutId: String
     let chunkIndices: [Int]
     let needsManifest: Bool
@@ -30,7 +30,7 @@ struct RetransmissionRequest {
     }
 }
 
-enum RetransmissionResponse: String {
+nonisolated enum RetransmissionResponse: String {
     case accepted
     case denied
     case notFound

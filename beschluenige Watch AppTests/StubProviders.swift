@@ -1,7 +1,7 @@
 import Foundation
 @testable import beschluenige_Watch_App
 
-final class StubHeartRateProvider: HeartRateProvider, @unchecked Sendable {
+@MainActor final class StubHeartRateProvider: HeartRateProvider {
     var authorizationRequested = false
     var monitoringStarted = false
     var monitoringStopped = false
@@ -32,7 +32,7 @@ final class StubHeartRateProvider: HeartRateProvider, @unchecked Sendable {
     }
 }
 
-final class StubLocationProvider: LocationProvider, @unchecked Sendable {
+@MainActor final class StubLocationProvider: LocationProvider {
     var authorizationRequested = false
     var monitoringStarted = false
     var monitoringStopped = false
@@ -63,7 +63,7 @@ enum StubProviderError: Error {
     case authorizationFailed
 }
 
-final class StubMotionProvider: DeviceMotionProvider, @unchecked Sendable {
+@MainActor final class StubMotionProvider: DeviceMotionProvider {
     var shouldThrow = false
     var monitoringStarted = false
     var monitoringStopped = false

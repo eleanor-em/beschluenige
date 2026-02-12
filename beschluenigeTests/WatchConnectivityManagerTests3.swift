@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 import WatchConnectivity
 import os
@@ -360,15 +361,15 @@ struct DecodeAndMergeTests {
         try enc.data.write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        var progressCalled = false
+        let progressCalled = Mutex(false)
         let (summary, _) = try await WatchConnectivityManager.streamDecode(
             from: tempURL
         ) { _, _, _ in
-            progressCalled = true
+            progressCalled.withLock { $0 = true }
         }
 
         #expect(summary.heartRateCount == sampleCount)
-        #expect(progressCalled)
+        #expect(progressCalled.withLock { $0 })
     }
 
     @Test func streamDecodeIndefiniteLengthProgressCallback() async throws {
@@ -393,15 +394,15 @@ struct DecodeAndMergeTests {
         try enc.data.write(to: tempURL)
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        var progressCalled = false
+        let progressCalled = Mutex(false)
         let (summary, _) = try await WatchConnectivityManager.streamDecode(
             from: tempURL
         ) { _, _, _ in
-            progressCalled = true
+            progressCalled.withLock { $0 = true }
         }
 
         #expect(summary.heartRateCount == sampleCount)
-        #expect(progressCalled)
+        #expect(progressCalled.withLock { $0 })
     }
 
     // MARK: - processReceivedFile replaces existing

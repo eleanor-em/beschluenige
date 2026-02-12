@@ -1,7 +1,7 @@
 import Foundation
 
 @Observable
-final class WorkoutStore: @unchecked Sendable {
+final class WorkoutStore {
     var workouts: [WatchWorkoutRecord] = []
     var activeTransfers: [String: Progress] = [:]
     private var transferObservations: [String: NSKeyValueObservation] = [:]
@@ -65,7 +65,7 @@ final class WorkoutStore: @unchecked Sendable {
         transferObservations[workoutId] = progress.observe(
             \.fractionCompleted, options: [.new]
         ) { [weak self] _, _ in
-            DispatchQueue.main.async {
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 if progress.fractionCompleted >= 1.0 {
                     self.activeTransfers.removeValue(forKey: workoutId)

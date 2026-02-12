@@ -1,16 +1,16 @@
 import CoreMotion
 import Foundation
 
-final class CoreDeviceMotionProvider: DeviceMotionProvider, @unchecked Sendable {
+final class CoreDeviceMotionProvider: DeviceMotionProvider {
     private let manager = CMBatchedSensorManager()
     private var accelTask: Task<Void, Never>?
     private var dmTask: Task<Void, Never>?
     private var bootTimeDelta: TimeInterval = 0
     private var accelerometerAvailableOverride: Bool?
     private var deviceMotionAvailableOverride: Bool?
-    nonisolated(unsafe) private var accelStreamFactory:
+    private var accelStreamFactory:
         @Sendable () -> AsyncThrowingStream<[CMAccelerometerData], any Error>
-    nonisolated(unsafe) private var dmStreamFactory:
+    private var dmStreamFactory:
         @Sendable () -> AsyncThrowingStream<[CMDeviceMotion], any Error>
     private let logger = AppLogger(category: "CoreMotion")
 

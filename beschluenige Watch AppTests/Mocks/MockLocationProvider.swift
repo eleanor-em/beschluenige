@@ -2,11 +2,13 @@ import Foundation
 import os
 @testable import beschluenige_Watch_App
 
-final class MockLocationProvider: LocationProvider, @unchecked Sendable {
+@MainActor final class MockLocationProvider: LocationProvider {
     private var realProvider: (any LocationProvider)?
     private let realProviderFactory: @Sendable () -> any LocationProvider
     private var sampleHandler: (@Sendable ([LocationSample]) -> Void)?
     private let fallbackManager: FallbackTimerManager
+    private var lat = 43.6532
+    private var lon = -79.3832
 
     var onFallbackActivated: (@Sendable () -> Void)? {
         get { fallbackManager.onFallbackActivated }
@@ -41,29 +43,29 @@ final class MockLocationProvider: LocationProvider, @unchecked Sendable {
         }
 
         try await realProvider!.startMonitoring { [weak self] samples in
-            guard let self else { return }
-            fallbackManager.markRealSampleReceived()
+            MainActor.assumeIsolated {
+                self?.fallbackManager.markRealSampleReceived()
+            }
             handler(samples)
         }
 
-        var lat = 43.6532
-        var lon = -79.3832
-
         fallbackManager.startTimeout { [weak self] in
-            guard let self, let handler = sampleHandler else { return }
-            lat += Double.random(in: -0.0001...0.0001)
-            lon += Double.random(in: -0.0001...0.0001)
-            let sample = LocationSample(
-                timestamp: Date(),
-                latitude: lat,
-                longitude: lon,
-                altitude: 76.0,
-                horizontalAccuracy: 5.0,
-                verticalAccuracy: 8.0,
-                speed: Double.random(in: 0...8),
-                course: Double.random(in: 0..<360)
-            )
-            handler([sample])
+            MainActor.assumeIsolated {
+                guard let self, let handler = self.sampleHandler else { return }
+                self.lat += Double.random(in: -0.0001...0.0001)
+                self.lon += Double.random(in: -0.0001...0.0001)
+                let sample = LocationSample(
+                    timestamp: Date(),
+                    latitude: self.lat,
+                    longitude: self.lon,
+                    altitude: 76.0,
+                    horizontalAccuracy: 5.0,
+                    verticalAccuracy: 8.0,
+                    speed: Double.random(in: 0...8),
+                    course: Double.random(in: 0..<360)
+                )
+                handler([sample])
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 import Foundation
 import HealthKit
 
-final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked Sendable {
+final class HealthKitHeartRateProvider: NSObject, HeartRateProvider {
     private let healthStore = HKHealthStore()
     private var hkWorkout: HKWorkoutSession?
     private var workoutBuilder: HKLiveWorkoutBuilder?
@@ -116,6 +116,45 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
         }
     }
 
+    func handleDidChangeTo(
+        toState: HKWorkoutSessionState,
+        fromState: HKWorkoutSessionState
+    ) {
+        if toState == .running {
+            logger.info("HKWorkoutSession state change: now .running")
+            if let continuation = workoutRunningContinuation {
+                workoutRunningContinuation = nil
+                continuation.resume()
+            }
+        } else if toState == .ended || toState == .stopped {
+            logger.error(
+                "HKWorkoutSession state change: \(fromState) -> "
+                    + "terminal \(toState.description) while waiting for .running"
+            )
+            if let continuation = workoutRunningContinuation {
+                workoutRunningContinuation = nil
+                continuation.resume(
+                    throwing: HKError(.errorHealthDataUnavailable)
+                )
+            }
+        } else {
+            logger.info("not handling HKWorkoutSession state change: "
+                            + "\(fromState.description) -> \(toState.description)")
+        }
+    }
+
+    func handleDidFailWithError(_ error: Error) {
+        let nsErr = error as NSError
+        logger.error(
+            "HKWorkoutSession failed: \(error.localizedDescription) (code: \(nsErr.code), domain: \(nsErr.domain))"
+        )
+        if let continuation = workoutRunningContinuation {
+            logger.error("Resuming continuation with error")
+            workoutRunningContinuation = nil
+            continuation.resume(throwing: error)
+        }
+    }
+
     // MARK: - Heart Rate Query
 
     func startHeartRateQuery() {
@@ -130,11 +169,15 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
             anchor: nil,
             limit: HKObjectQueryNoLimit
         ) { [weak self] _, samples, _, _, error in
-            self?.handleQueryResults(samples, error: error, unit: bpmUnit)
+            Task { @MainActor [weak self] in
+                self?.handleQueryResults(samples, error: error, unit: bpmUnit)
+            }
         }
 
         query.updateHandler = { [weak self] _, samples, _, _, error in
-            self?.handleQueryUpdate(samples, error: error, unit: bpmUnit)
+            Task { @MainActor [weak self] in
+                self?.handleQueryUpdate(samples, error: error, unit: bpmUnit)
+            }
         }
 
         healthStore.execute(query)
@@ -219,47 +262,23 @@ final class HealthKitHeartRateProvider: NSObject, HeartRateProvider, @unchecked 
 // MARK: - HKWorkoutSessionDelegate
 
 extension HealthKitHeartRateProvider: HKWorkoutSessionDelegate {
-    func workoutSession(
+    nonisolated func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didChangeTo toState: HKWorkoutSessionState,
         from fromState: HKWorkoutSessionState,
         date: Date
     ) {
-        if toState == .running {
-            logger.info("HKWorkoutSession state change: now .running")
-            if let continuation = workoutRunningContinuation {
-                workoutRunningContinuation = nil
-                continuation.resume()
-            }
-        } else if toState == .ended || toState == .stopped {
-            logger.error(
-                "HKWorkoutSession state change: \(fromState) -> "
-                    + "terminal \(toState.description) while waiting for .running"
-            )
-            if let continuation = workoutRunningContinuation {
-                workoutRunningContinuation = nil
-                continuation.resume(
-                    throwing: HKError(.errorHealthDataUnavailable)
-                )
-            }
-        } else {
-            logger.info("not handling HKWorkoutSession state change: "
-                            + "\(fromState.description) -> \(toState.description)")
+        Task { @MainActor [weak self] in
+            self?.handleDidChangeTo(toState: toState, fromState: fromState)
         }
     }
 
-    func workoutSession(
+    nonisolated func workoutSession(
         _ workoutSession: HKWorkoutSession,
         didFailWithError error: Error
     ) {
-        let nsErr = error as NSError
-        logger.error(
-            "HKWorkoutSession failed: \(error.localizedDescription) (code: \(nsErr.code), domain: \(nsErr.domain))"
-        )
-        if let continuation = workoutRunningContinuation {
-            logger.error("Resuming continuation with error")
-            workoutRunningContinuation = nil
-            continuation.resume(throwing: error)
+        Task { @MainActor [weak self] in
+            self?.handleDidFailWithError(error)
         }
     }
 }
@@ -267,11 +286,11 @@ extension HealthKitHeartRateProvider: HKWorkoutSessionDelegate {
 // MARK: - HKLiveWorkoutBuilderDelegate
 
 extension HealthKitHeartRateProvider: HKLiveWorkoutBuilderDelegate {
-    func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
+    nonisolated func workoutBuilderDidCollectEvent(_ workoutBuilder: HKLiveWorkoutBuilder) {
         // nothing to do
     }
 
-    func workoutBuilder(
+    nonisolated func workoutBuilder(
         _ workoutBuilder: HKLiveWorkoutBuilder,
         didCollectDataOf collectedTypes: Set<HKSampleType>
     ) {

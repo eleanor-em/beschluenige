@@ -2,7 +2,7 @@ import Foundation
 
 let isRunningTests = ProcessInfo.processInfo.environment["XCTestBundlePath"] != nil
 
-enum SampleGenerators {
+nonisolated enum SampleGenerators {
     static func generateAccelBatch(
         at now: Date, count: Int = 100
     ) -> [AccelerometerSample] {
@@ -37,7 +37,7 @@ enum SampleGenerators {
     }
 }
 
-final class UITestHeartRateProvider: HeartRateProvider, @unchecked Sendable {
+final class UITestHeartRateProvider: HeartRateProvider {
     private var timer: Timer?
 
     func requestAuthorization() async throws {}
@@ -62,7 +62,7 @@ final class UITestHeartRateProvider: HeartRateProvider, @unchecked Sendable {
     }
 }
 
-final class UITestLocationProvider: LocationProvider, @unchecked Sendable {
+final class UITestLocationProvider: LocationProvider {
     private var timer: Timer?
 
     func requestAuthorization() async throws {}
@@ -93,7 +93,7 @@ final class UITestLocationProvider: LocationProvider, @unchecked Sendable {
     }
 }
 
-final class UITestMotionProvider: DeviceMotionProvider, @unchecked Sendable {
+final class UITestMotionProvider: DeviceMotionProvider {
     private var timer: Timer?
 
     func startMonitoring(

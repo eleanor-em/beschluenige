@@ -110,7 +110,7 @@ struct HealthKitHeartRateProviderTests {
 
     // MARK: - Delegate: didChangeTo
 
-    @Test func delegateMethodsDoNotCrash() throws {
+    @Test func delegateMethodsDoNotCrash() async throws {
         let provider = HealthKitHeartRateProvider()
 
         let config = HKWorkoutConfiguration()
@@ -127,10 +127,12 @@ struct HealthKitHeartRateProviderTests {
             from: .notStarted,
             date: Date()
         )
+        await Task.yield()
         provider.workoutSession(
             session,
             didFailWithError: NSError(domain: "test", code: 1)
         )
+        await Task.yield()
     }
 
     @Test func didChangeToRunningWithContinuation() async throws {
@@ -155,6 +157,7 @@ struct HealthKitHeartRateProviderTests {
             from: .notStarted,
             date: Date()
         )
+        await Task.yield()
 
         try await task.value
     }
@@ -181,6 +184,7 @@ struct HealthKitHeartRateProviderTests {
             from: .running,
             date: Date()
         )
+        await Task.yield()
 
         do {
             try await task.value
@@ -212,6 +216,7 @@ struct HealthKitHeartRateProviderTests {
             from: .running,
             date: Date()
         )
+        await Task.yield()
 
         do {
             try await task.value
@@ -242,6 +247,7 @@ struct HealthKitHeartRateProviderTests {
         await Task.yield()
 
         provider.workoutSession(session, didFailWithError: injectedError)
+        await Task.yield()
 
         do {
             try await task.value
@@ -250,6 +256,49 @@ struct HealthKitHeartRateProviderTests {
             let nsErr = error as NSError
             #expect(nsErr.domain == "TestDomain")
             #expect(nsErr.code == 42)
+        }
+    }
+
+    // MARK: - handleDidChangeTo / handleDidFailWithError (direct handler tests)
+
+    @Test func handleDidChangeToRunning() async throws {
+        let provider = HealthKitHeartRateProvider()
+
+        let task = Task<Void, Error> {
+            try await withCheckedThrowingContinuation { continuation in
+                provider.storeWorkoutRunningContinuation(continuation)
+            }
+        }
+
+        await Task.yield()
+
+        provider.handleDidChangeTo(toState: .running, fromState: .notStarted)
+
+        try await task.value
+    }
+
+    @Test func handleDidFailWithError() async throws {
+        let provider = HealthKitHeartRateProvider()
+
+        let injectedError = NSError(domain: "TestDomain", code: 99)
+
+        let task = Task<Void, Error> {
+            try await withCheckedThrowingContinuation { continuation in
+                provider.storeWorkoutRunningContinuation(continuation)
+            }
+        }
+
+        await Task.yield()
+
+        provider.handleDidFailWithError(injectedError)
+
+        do {
+            try await task.value
+            Issue.record("Expected error to be thrown")
+        } catch {
+            let nsErr = error as NSError
+            #expect(nsErr.domain == "TestDomain")
+            #expect(nsErr.code == 99)
         }
     }
 
@@ -359,6 +408,7 @@ struct HealthKitHeartRateProviderTests {
             from: .notStarted,
             date: Date()
         )
+        await Task.yield()
 
         try await task.value
     }
@@ -386,9 +436,17 @@ struct HealthKitHeartRateProviderTests {
             from: .prepared,
             date: Date()
         )
+        await Task.yield()
 
         try await task.value
     }
+
+}
+
+// MARK: - Query, Builder, Integration Tests
+
+@MainActor
+struct HealthKitHeartRateProviderQueryTests {
 
     // MARK: - handleQueryResults / handleQueryUpdate
 
@@ -501,7 +559,7 @@ struct HealthKitHeartRateProviderTests {
 
     // MARK: - Delegate without continuation (no-op paths)
 
-    @Test func didChangeToEndedWithoutContinuationIsNoOp() throws {
+    @Test func didChangeToEndedWithoutContinuationIsNoOp() async throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()
         config.activityType = .other
@@ -514,9 +572,10 @@ struct HealthKitHeartRateProviderTests {
             from: .running,
             date: Date()
         )
+        await Task.yield()
     }
 
-    @Test func didChangeToStoppedWithoutContinuationIsNoOp() throws {
+    @Test func didChangeToStoppedWithoutContinuationIsNoOp() async throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()
         config.activityType = .other
@@ -529,9 +588,10 @@ struct HealthKitHeartRateProviderTests {
             from: .running,
             date: Date()
         )
+        await Task.yield()
     }
 
-    @Test func didFailWithErrorWithoutContinuationIsNoOp() throws {
+    @Test func didFailWithErrorWithoutContinuationIsNoOp() async throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()
         config.activityType = .other
@@ -542,6 +602,7 @@ struct HealthKitHeartRateProviderTests {
             session,
             didFailWithError: NSError(domain: "test", code: 1)
         )
+        await Task.yield()
     }
 
     // MARK: - Query error logging
@@ -564,7 +625,7 @@ struct HealthKitHeartRateProviderTests {
 
     // MARK: - startHeartRateQuery update handler coverage
 
-    @Test func startHeartRateQueryUpdateHandler() throws {
+    @Test func startHeartRateQueryUpdateHandler() async throws {
         let provider = HealthKitHeartRateProvider()
         var received: [HeartRateSample] = []
         provider.setSampleHandler { samples in
@@ -585,6 +646,7 @@ struct HealthKitHeartRateProviderTests {
             end: Date()
         )
         query?.updateHandler?(query!, [sample], [], nil, nil)
+        await Task.yield()
 
         #expect(received.count == 1)
         #expect(received[0].beatsPerMinute == 142.0)
@@ -622,8 +684,6 @@ struct HealthKitHeartRateProviderTests {
         provider.stopMonitoring()
     }
 
-    // MARK: - didChangeTo with other states (no continuation)
-
     // MARK: - checkAuthorizationStatus
 
     @Test func checkAuthorizationStatusAuthorized() {
@@ -643,7 +703,7 @@ struct HealthKitHeartRateProviderTests {
         provider.checkAuthorizationStatus(.sharingDenied)
     }
 
-    @Test func didChangeToPausedIsNoOp() throws {
+    @Test func didChangeToPausedIsNoOp() async throws {
         let provider = HealthKitHeartRateProvider()
         let config = HKWorkoutConfiguration()
         config.activityType = .other
@@ -656,5 +716,6 @@ struct HealthKitHeartRateProviderTests {
             from: .running,
             date: Date()
         )
+        await Task.yield()
     }
 }

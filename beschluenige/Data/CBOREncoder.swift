@@ -4,7 +4,7 @@ import Foundation
 // Supports: unsigned int, Float64, Data, String, definite/indefinite Array, definite Map, Break.
 // See RFC 8949 for the CBOR specification.
 
-struct CBOREncoder {
+nonisolated struct CBOREncoder {
     private(set) var data = Data()
 
     // MARK: - Major type 0: Unsigned integer

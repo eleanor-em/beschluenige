@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import beschluenige_Watch_App
 
+@MainActor
 struct WorkoutStoreTests {
 
     private func makeTempURL() -> URL {

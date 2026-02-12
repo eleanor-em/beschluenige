@@ -4,7 +4,7 @@ import WatchConnectivity
 import os
 
 @Observable
-final class WatchConnectivityManager: NSObject, @unchecked Sendable {
+final class WatchConnectivityManager: NSObject {
     static let shared = WatchConnectivityManager()
 
     var workouts: [WorkoutRecord] = []
@@ -64,7 +64,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         case unexpectedReply
     }
 
-    struct ChunkFile: Codable, Sendable {
+    nonisolated struct ChunkFile: Codable, Sendable {
         let chunkIndex: Int
         let fileName: String
 
@@ -234,7 +234,7 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
         }
 
         // Decode a CBOR chunk and append samples into the 4 per-sensor buckets.
-        static func decodeChunk(
+        nonisolated static func decodeChunk(
             _ data: Data,
             into buckets: inout [[[Double]]],
             fileName: String,
@@ -445,13 +445,13 @@ final class WatchConnectivityManager: NSObject, @unchecked Sendable {
                 chunks: chunks, workoutId: workoutId, logger: log
             )
             await MainActor.run { [self] in
-                mergingWorkouts.remove(workoutId)
+                self.mergingWorkouts.remove(workoutId)
                 guard let result else { return }
-                guard let i = workouts.firstIndex(where: { $0.workoutId == workoutId })
+                guard let i = self.workouts.firstIndex(where: { $0.workoutId == workoutId })
                 else { return }
-                workouts[i].mergedFileName = result.mergedName
-                workouts[i].fileSizeBytes = result.fileSize
-                saveWorkouts()
+                self.workouts[i].mergedFileName = result.mergedName
+                self.workouts[i].fileSizeBytes = result.fileSize
+                self.saveWorkouts()
             }
         }
     }
@@ -653,7 +653,7 @@ extension WatchConnectivityManager: WCSessionDelegate {
 
 // MARK: - Workout Summary
 
-struct WorkoutSummary {
+nonisolated struct WorkoutSummary {
     let heartRateCount: Int
     let heartRateMin: Double?
     let heartRateMax: Double?
@@ -672,7 +672,7 @@ struct WorkoutSummary {
     }
 }
 
-struct SummaryAccumulator {
+nonisolated struct SummaryAccumulator {
     var hrCount = 0
     var hrMin = Double.greatestFiniteMagnitude
     var hrMax = -Double.greatestFiniteMagnitude
@@ -739,7 +739,7 @@ struct WorkoutTimeseries: Sendable {
     let speed: [TimeseriesPoint]
 }
 
-struct TimeseriesAccumulator: Sendable {
+nonisolated struct TimeseriesAccumulator: Sendable {
     var hrPoints: [TimeseriesPoint] = []
     var speedPoints: [TimeseriesPoint] = []
 

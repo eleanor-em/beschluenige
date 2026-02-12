@@ -2,7 +2,7 @@ import Foundation
 import os
 @testable import beschluenige_Watch_App
 
-final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
+@MainActor final class MockHeartRateProvider: HeartRateProvider {
     private let realProvider: any HeartRateProvider
     private var sampleHandler: (@Sendable ([HeartRateSample]) -> Void)?
     private let fallbackManager: FallbackTimerManager
@@ -32,16 +32,19 @@ final class MockHeartRateProvider: HeartRateProvider, @unchecked Sendable {
         fallbackManager.reset()
 
         try await realProvider.startMonitoring { [weak self] samples in
-            guard let self else { return }
-            fallbackManager.markRealSampleReceived()
+            MainActor.assumeIsolated {
+                self?.fallbackManager.markRealSampleReceived()
+            }
             handler(samples)
         }
 
         fallbackManager.startTimeout { [weak self] in
-            guard let self, let handler = sampleHandler else { return }
-            let bpm = Double.random(in: 90...170)
-            let sample = HeartRateSample(timestamp: Date(), beatsPerMinute: bpm)
-            handler([sample])
+            MainActor.assumeIsolated {
+                guard let self, let handler = self.sampleHandler else { return }
+                let bpm = Double.random(in: 90...170)
+                let sample = HeartRateSample(timestamp: Date(), beatsPerMinute: bpm)
+                handler([sample])
+            }
         }
     }
 

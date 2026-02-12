@@ -4,7 +4,7 @@ import Foundation
 // Supports: unsigned int, Float64, Data, String, definite/indefinite Array, definite Map, Break.
 // See RFC 8949 for the CBOR specification.
 
-struct CBORDecoder {
+nonisolated struct CBORDecoder {
     private let data: Data
     private(set) var offset: Int = 0
 

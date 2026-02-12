@@ -1,8 +1,7 @@
 import CoreLocation
 import Foundation
 
-final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerDelegate,
-                                  @unchecked Sendable {
+final class CoreLocationProvider: NSObject, LocationProvider, CLLocationManagerDelegate {
     private let locationManager = CLLocationManager()
     private var sampleHandler: (@Sendable ([LocationSample]) -> Void)?
     private var authorizationContinuation: CheckedContinuation<Void, Error>?

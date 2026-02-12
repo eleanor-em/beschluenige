@@ -1,16 +1,20 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import beschluenige_Watch_App
 
-private final class Flag: @unchecked Sendable {
-    var value = false
+private nonisolated final class Flag: Sendable {
+    private let storage = Mutex(false)
+    var value: Bool { storage.withLock { $0 } }
+    func set(_ newValue: Bool) { storage.withLock { $0 = newValue } }
 }
 
-private final class Collector<T: Sendable>: @unchecked Sendable {
-    var items: [T] = []
-    func append(_ item: T) { items.append(item) }
-    func append(contentsOf newItems: [T]) { items.append(contentsOf: newItems) }
-    func replace(with newItems: [T]) { items = newItems }
+private nonisolated final class Collector<T: Sendable>: Sendable {
+    private let storage = Mutex<[T]>([])
+    var items: [T] { storage.withLock { $0 } }
+    func append(_ item: T) { storage.withLock { $0.append(item) } }
+    func append(contentsOf newItems: [T]) { storage.withLock { $0.append(contentsOf: newItems) } }
+    func replace(with newItems: [T]) { storage.withLock { $0 = newItems } }
 }
 
 // MARK: - MockHeartRateProvider
@@ -63,7 +67,7 @@ struct MockHeartRateProviderTests {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.1)
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         let received = Collector<HeartRateSample>()
         try await mock.startMonitoring { samples in
@@ -81,7 +85,7 @@ struct MockHeartRateProviderTests {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.2)
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         try await mock.startMonitoring { _ in }
 
@@ -99,7 +103,7 @@ struct MockHeartRateProviderTests {
         let stub = StubHeartRateProvider()
         let mock = MockHeartRateProvider(realProvider: stub, timeoutInterval: 0.2)
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         try await mock.startMonitoring { _ in }
         mock.stopMonitoring()
@@ -182,7 +186,7 @@ struct MockLocationProviderTests {
             timeoutInterval: 0.1
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         let received = Collector<LocationSample>()
         try await mock.startMonitoring { samples in
@@ -202,7 +206,7 @@ struct MockLocationProviderTests {
             timeoutInterval: 0.2
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         try await mock.startMonitoring { _ in }
 
@@ -224,7 +228,7 @@ struct MockLocationProviderTests {
         let stub = StubLocationProvider()
         let mock = MockLocationProvider(
             realProviderFactory: {
-                created.value = true
+                created.set(true)
                 return stub
             },
             timeoutInterval: 60
@@ -326,7 +330,7 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.1
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         let received = Collector<AccelerometerSample>()
         try mock.startMonitoring(
@@ -349,7 +353,7 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.1
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         let accelReceived = Collector<AccelerometerSample>()
         let dmReceived = Collector<DeviceMotionSample>()
@@ -376,7 +380,7 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.2
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         try mock.startMonitoring(
             accelerometerHandler: { _ in },
@@ -399,7 +403,7 @@ struct MockMotionProviderTests {
             timeoutInterval: 0.2
         )
         let callbackFired = Flag()
-        mock.onFallbackActivated = { callbackFired.value = true }
+        mock.onFallbackActivated = { callbackFired.set(true) }
 
         try mock.startMonitoring(
             accelerometerHandler: { _ in },

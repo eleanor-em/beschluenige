@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 import WatchConnectivity
 
-final class PhoneConnectivityManager: NSObject, @unchecked Sendable {
+final class PhoneConnectivityManager: NSObject {
     static let shared = PhoneConnectivityManager()
 
     private let session: any ConnectivitySession
