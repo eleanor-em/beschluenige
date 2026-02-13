@@ -8,7 +8,6 @@
 import CryptoKit
 import Foundation
 import WatchConnectivity
-import os
 
 struct WorkoutRecord: Identifiable, Codable, Sendable {
     let id: UUID
@@ -59,7 +58,7 @@ struct WorkoutRecord: Identifiable, Codable, Sendable {
         self.failedChunks = []
     }
 
-    mutating func verifyReceivedChunks(against manifest: TransferManifest, logger: Logger) {
+    mutating func verifyReceivedChunks(against manifest: TransferManifest, logger: AppLogger) {
         var verified: [ChunkFile] = []
         for chunk in receivedChunks {
             guard chunk.chunkIndex < manifest.chunks.count else {
@@ -93,7 +92,7 @@ struct WorkoutRecord: Identifiable, Codable, Sendable {
     }
 
     // Returns false if the chunk is a duplicate.
-    mutating func processChunk(_ info: ChunkTransferInfo, logger: Logger) -> Bool {
+    mutating func processChunk(_ info: ChunkTransferInfo, logger: AppLogger) -> Bool {
         if receivedChunks.contains(where: { $0.chunkIndex == info.chunkIndex }) {
             logger.warning("Duplicate chunk \(info.chunkIndex) for workout \(info.workoutId)")
             return false
@@ -106,7 +105,7 @@ struct WorkoutRecord: Identifiable, Codable, Sendable {
         return true
     }
 
-    mutating func mergeChunks(logger: Logger) {
+    mutating func mergeChunks(logger: AppLogger) {
         guard let result = Self.performMerge(
             chunks: receivedChunks, workoutId: workoutId, logger: logger
         ) else { return }
@@ -120,7 +119,7 @@ struct WorkoutRecord: Identifiable, Codable, Sendable {
     nonisolated static func performMerge(
         chunks: [ChunkFile],
         workoutId: String,
-        logger: Logger
+        logger: AppLogger
     ) -> (mergedName: String, fileSize: Int64)? {
         let sorted = chunks.sorted { $0.chunkIndex < $1.chunkIndex }
 
@@ -173,7 +172,7 @@ struct WorkoutRecord: Identifiable, Codable, Sendable {
         _ data: Data,
         into buckets: inout [[[Double]]],
         fileName: String,
-        logger: Logger
+        logger: AppLogger
     ) -> Bool {
         do {
             var dec = CBORDecoder(data: data)

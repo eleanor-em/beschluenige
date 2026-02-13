@@ -2,7 +2,6 @@ import Foundation
 import Synchronization
 import Testing
 import WatchConnectivity
-import os
 @testable import beschluenige
 
 // MARK: - Persistence Tests
@@ -64,7 +63,7 @@ struct PersistenceTests {
 @MainActor
 struct DecodeAndMergeTests {
 
-    private let testLogger = Logger(subsystem: "test", category: "test")
+    private let testLogger = AppLogger(category: "test")
 
     private func makeCborChunk(hrTimestamp: Double, hrBpm: Double) -> Data {
         var enc = CBOREncoder()

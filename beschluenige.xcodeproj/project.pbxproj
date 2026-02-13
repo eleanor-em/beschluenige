@@ -83,6 +83,8 @@
 				Transfer/ChunkFile.swift,
 				Transfer/Retransmission.swift,
 				Transfer/TransferManifest.swift,
+				Util/AppLogger.swift,
+				Util/AppLogStore.swift,
 				Util/Formatting.swift,
 				Util/Util.swift,
 			);

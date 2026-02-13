@@ -1,6 +1,5 @@
 import HealthKit
 import SwiftUI
-import os
 
 struct ContentView: View {
     var connectivityManager = WatchConnectivityManager.shared
@@ -15,10 +14,7 @@ struct ContentView: View {
     @State private var healthAuthDenied = false
     @State private var workoutToDelete: WorkoutRecord?
 
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige",
-        category: "ContentView"
-    )
+    private let logger = AppLogger(category: "ContentView")
 
     init(
         connectivityManager: WatchConnectivityManager = .shared,
@@ -78,6 +74,15 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("beschluenige")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink {
+                        LogsView()
+                    } label: {
+                        Label("Logs", systemImage: "list.bullet.rectangle")
+                    }
+                }
+            }
             .alert(
                 "Delete Workout",
                 isPresented: Binding(

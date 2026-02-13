@@ -52,6 +52,10 @@ struct BeschluenigeApp: App {
 
         manager.workouts = [complete, incomplete, merging]
 
+        let logStore = AppLogStore.shared
+        logStore.append(level: .info, category: "UITest", message: "Test log entry")
+        logStore.append(level: .error, category: "UITest", message: "Test error entry")
+
         seedDecodedData(
             manager: manager, completeId: completeId,
             startDate: startDate, hrSamples: hrSamples

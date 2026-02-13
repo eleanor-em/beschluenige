@@ -1,15 +1,11 @@
 import Foundation
 import Testing
-import os
 @testable import beschluenige
 
 @MainActor
 struct WorkoutRecordTests {
 
-    private let testLogger = Logger(
-        subsystem: "net.lnor.beschluenige.tests",
-        category: "WorkoutRecordTests"
-    )
+    private let testLogger = AppLogger(category: "WorkoutRecordTests")
 
     private func makeRecord(
         workoutId: String = "w1",

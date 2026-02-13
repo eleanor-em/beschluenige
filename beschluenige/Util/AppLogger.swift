@@ -1,13 +1,19 @@
+import Foundation
 import os
 
 struct AppLogger: Sendable {
+    private static let defaultSubsystem = Bundle.main.bundleIdentifier!
     private let osLogger: Logger
     private let category: String
     nonisolated private let store: AppLogStore
 
-    init(category: String, store: AppLogStore = .shared) {
+    init(
+        category: String,
+        subsystem: String = AppLogger.defaultSubsystem,
+        store: AppLogStore = .shared
+    ) {
         self.osLogger = Logger(
-            subsystem: "net.lnor.beschluenige.watchkitapp",
+            subsystem: subsystem,
             category: category
         )
         self.category = category

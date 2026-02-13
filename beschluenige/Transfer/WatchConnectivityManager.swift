@@ -1,7 +1,6 @@
 import CryptoKit
 import Foundation
 import WatchConnectivity
-import os
 
 @Observable
 final class WatchConnectivityManager: NSObject {
@@ -16,10 +15,7 @@ final class WatchConnectivityManager: NSObject {
     var decodingErrors: [String: String] = [:]
 
     private let session = WCSession.default
-    private let logger = Logger(
-        subsystem: "net.lnor.beschluenige",
-        category: "Connectivity"
-    )
+    private let logger = AppLogger(category: "Connectivity")
 
     @ObservationIgnored
     var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse =

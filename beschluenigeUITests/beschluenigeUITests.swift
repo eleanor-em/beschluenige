@@ -40,6 +40,37 @@ final class BeschluenigeUITests: XCTestCase {
         )
     }
 
+    // MARK: - LogsView
+
+    @MainActor
+    func testNavigateToLogsView() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--ui-testing"]
+        app.launch()
+
+        XCTAssertTrue(
+            app.navigationBars["beschluenige"].waitForExistence(timeout: 5)
+        )
+
+        let logsButton = app.buttons["Logs"]
+        XCTAssertTrue(
+            logsButton.waitForExistence(timeout: 3),
+            "Logs toolbar button should be visible"
+        )
+        logsButton.tap()
+
+        XCTAssertTrue(
+            app.navigationBars["Logs"].waitForExistence(timeout: 5),
+            "Should navigate to Logs view"
+        )
+
+        // Seeded log entries should be visible (ForEach)
+        XCTAssertTrue(
+            app.staticTexts["Test log entry"].waitForExistence(timeout: 3),
+            "Should show seeded log entry"
+        )
+    }
+
     // MARK: - UI tests with seeded data
 
     @MainActor

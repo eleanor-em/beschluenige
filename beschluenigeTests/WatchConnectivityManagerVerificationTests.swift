@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 import WatchConnectivity
-import os
 @testable import beschluenige
 
 // MARK: - Verification, Manifest, and Decode Tests
@@ -10,7 +9,7 @@ import os
 @MainActor
 struct VerificationTests {
 
-    private let testLogger = Logger(subsystem: "test", category: "test")
+    private let testLogger = AppLogger(category: "test")
 
     // MARK: - verifyReceivedChunks
 
