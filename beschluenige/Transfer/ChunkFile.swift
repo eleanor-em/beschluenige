@@ -1,6 +1,17 @@
 import Foundation
 
-struct ChunkTransferInfo {
+nonisolated struct ChunkFile: Codable, Sendable {
+    let chunkIndex: Int
+    let fileName: String
+
+    var fileURL: URL {
+        FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!.appendingPathComponent(fileName)
+    }
+}
+
+nonisolated struct ChunkTransferInfo {
     let workoutId: String
     let chunkIndex: Int
     let totalChunks: Int

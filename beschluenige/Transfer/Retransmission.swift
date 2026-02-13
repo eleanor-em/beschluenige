@@ -1,5 +1,19 @@
 import Foundation
 
+enum RetransmissionResult: Equatable {
+    case alreadyMerged
+    case nothingToRequest
+    case accepted
+    case denied
+    case unreachable
+    case notFound
+    case error(String)
+}
+
+enum RetransmissionError: Error {
+    case unexpectedReply
+}
+
 nonisolated struct RetransmissionRequest {
     let workoutId: String
     let chunkIndices: [Int]

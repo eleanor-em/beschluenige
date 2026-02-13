@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 
 nonisolated struct TransferManifest: Codable, Sendable {
@@ -13,10 +12,4 @@ nonisolated struct TransferManifest: Codable, Sendable {
     let totalSampleCount: Int
     let totalChunks: Int
     let chunks: [ChunkEntry]
-}
-
-nonisolated func md5Hex(of url: URL) throws -> String {
-    let data = try Data(contentsOf: url)
-    let digest = Insecure.MD5.hash(data: data)
-    return digest.map { String(format: "%02x", $0) }.joined()
 }

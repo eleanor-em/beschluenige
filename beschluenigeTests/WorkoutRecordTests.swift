@@ -15,8 +15,8 @@ struct WorkoutRecordTests {
         workoutId: String = "w1",
         totalChunks: Int = 3,
         startDate: Date = Date(timeIntervalSince1970: 1_700_000_000)
-    ) -> WatchConnectivityManager.WorkoutRecord {
-        WatchConnectivityManager.WorkoutRecord(
+    ) -> WorkoutRecord {
+        WorkoutRecord(
             workoutId: workoutId,
             startDate: startDate,
             totalSampleCount: 100,

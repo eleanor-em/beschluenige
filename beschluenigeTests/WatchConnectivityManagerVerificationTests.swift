@@ -29,14 +29,14 @@ struct VerificationTests {
         let hash = try md5Hex(of: chunkURL)
         let size = Int64(chunkData.count)
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
 
         let manifest = TransferManifest(
@@ -68,14 +68,14 @@ struct VerificationTests {
         try chunkData.write(to: chunkURL)
         defer { try? FileManager.default.removeItem(at: chunkURL) }
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
 
         let manifest = TransferManifest(
@@ -97,14 +97,14 @@ struct VerificationTests {
 
     @Test func verifyReceivedChunksIndexOutOfRange() {
         let workoutId = "verify_oor_\(UUID().uuidString)"
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 2
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 5, fileName: "missing.cbor"),
+            ChunkFile(chunkIndex: 5, fileName: "missing.cbor"),
         ]
 
         let manifest = TransferManifest(
@@ -126,14 +126,14 @@ struct VerificationTests {
 
     @Test func verifyReceivedChunksFileNotFound() {
         let workoutId = "verify_nofile_\(UUID().uuidString)"
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(
+            ChunkFile(
                 chunkIndex: 0, fileName: "nonexistent_\(UUID().uuidString).cbor"
             ),
         ]
@@ -186,7 +186,7 @@ struct VerificationTests {
         let hash = try md5Hex(of: chunkURL)
         let size = Int64(chunkData.count)
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -240,7 +240,7 @@ struct VerificationTests {
         try chunkData.write(to: chunkURL)
         defer { try? FileManager.default.removeItem(at: chunkURL) }
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -284,7 +284,7 @@ struct VerificationTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "pcwv_oor_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -351,7 +351,7 @@ struct VerificationTests {
             for: .documentDirectory, in: .userDomainMask
         ).first!
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -364,7 +364,7 @@ struct VerificationTests {
         defer { try? FileManager.default.removeItem(at: chunkURL) }
 
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
         manager.workouts.append(record)
 
@@ -414,14 +414,14 @@ struct VerificationTests {
         let hash = try md5Hex(of: chunkURL)
         let size = Int64(chunkData.count)
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
         record.manifest = TransferManifest(
             workoutId: workoutId,
@@ -449,7 +449,7 @@ struct VerificationTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "reverify_merged_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -477,7 +477,7 @@ struct VerificationTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "reverify_noman_\(UUID().uuidString)"
 
-        let record = WatchConnectivityManager.WorkoutRecord(
+        let record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -497,7 +497,7 @@ struct VerificationTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "pcwv_catch_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,

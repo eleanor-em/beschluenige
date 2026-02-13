@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct WorkoutDetailView: View {
-    let record: WatchConnectivityManager.WorkoutRecord
+    let record: WorkoutRecord
     var connectivityManager = WatchConnectivityManager.shared
     @State private var diskFiles: [DiskFile] = []
     @State private var selectedTab: DetailTab = .summary
     @Environment(\.dismiss) private var dismiss
 
     init(
-        record: WatchConnectivityManager.WorkoutRecord,
+        record: WorkoutRecord,
         connectivityManager: WatchConnectivityManager = .shared,
         initialSelectedTab: DetailTab = .summary,
         initialDiskFiles: [DiskFile] = []
@@ -347,7 +347,7 @@ struct ChunkListView: View {
         }
     }
 
-    private var record: WatchConnectivityManager.WorkoutRecord? {
+    private var record: WorkoutRecord? {
         connectivityManager.workouts.first { $0.workoutId == workoutId }
     }
 
@@ -374,7 +374,7 @@ struct ChunkListView: View {
         }
     }
 
-    func manifestRow(_ record: WatchConnectivityManager.WorkoutRecord) -> some View {
+    func manifestRow(_ record: WorkoutRecord) -> some View {
         Label {
             if record.manifest != nil {
                 Text("Manifest received")
@@ -392,7 +392,7 @@ struct ChunkListView: View {
     }
 
     static func alertType(
-        for result: WatchConnectivityManager.RetransmissionResult
+        for result: RetransmissionResult
     ) -> RetransmissionAlert? {
         switch result {
         case .accepted, .nothingToRequest:
@@ -442,7 +442,7 @@ struct ChunkListView: View {
         }
     }
 
-    func chunkRow(record: WatchConnectivityManager.WorkoutRecord, index: Int) -> some View {
+    func chunkRow(record: WorkoutRecord, index: Int) -> some View {
         let received = record.receivedChunks.contains { $0.chunkIndex == index }
         let failed = record.failedChunks.contains(index)
         let hasManifest = record.manifest != nil

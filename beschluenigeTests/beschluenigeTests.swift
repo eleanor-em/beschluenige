@@ -423,7 +423,7 @@ struct WatchConnectivityManagerTests {
     }
 
     @Test func chunkFileURL() {
-        let chunk = WatchConnectivityManager.ChunkFile(
+        let chunk = ChunkFile(
             chunkIndex: 0, fileName: "test_file.cbor"
         )
         #expect(chunk.fileURL.lastPathComponent == "test_file.cbor")

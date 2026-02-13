@@ -13,7 +13,7 @@ struct ContentView: View {
         return store.authorizationStatus(for: workoutType)
     }
     @State private var healthAuthDenied = false
-    @State private var workoutToDelete: WatchConnectivityManager.WorkoutRecord?
+    @State private var workoutToDelete: WorkoutRecord?
 
     private let logger = Logger(
         subsystem: "net.lnor.beschluenige",
@@ -111,7 +111,7 @@ struct ContentView: View {
 
     @ViewBuilder
     func workoutRow(
-        _ record: WatchConnectivityManager.WorkoutRecord
+        _ record: WorkoutRecord
     ) -> some View {
         VStack(alignment: .leading) {
             Text(record.displayName)

@@ -23,15 +23,15 @@ struct ContentViewTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "cvrow_complete_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 50,
             totalChunks: 2
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
-            WatchConnectivityManager.ChunkFile(chunkIndex: 1, fileName: "c1.cbor"),
+            ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
+            ChunkFile(chunkIndex: 1, fileName: "c1.cbor"),
         ]
         record.fileSizeBytes = 2048
 
@@ -41,7 +41,7 @@ struct ContentViewTests {
 
     @Test func workoutRowIncompleteRecord() {
         let manager = WatchConnectivityManager.shared
-        let record = WatchConnectivityManager.WorkoutRecord(
+        let record = WorkoutRecord(
             workoutId: "cvrow_incomplete_\(UUID().uuidString)",
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 50,
@@ -83,14 +83,14 @@ struct ContentViewTests {
     @Test func workoutRowWithMergedFile() {
         let manager = WatchConnectivityManager.shared
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: "cvrow_merged_\(UUID().uuidString)",
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 50,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
+            ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
         ]
         record.mergedFileName = "merged.cbor"
         record.fileSizeBytes = 4096
@@ -110,9 +110,9 @@ struct WorkoutDetailViewTests {
         totalChunks: Int = 2,
         isComplete: Bool = false,
         mergedFileName: String? = nil
-    ) -> WatchConnectivityManager.WorkoutRecord {
+    ) -> WorkoutRecord {
         let id = workoutId ?? "viewtest_\(UUID().uuidString)"
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: id,
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 50,
@@ -121,7 +121,7 @@ struct WorkoutDetailViewTests {
         if isComplete {
             for i in 0..<totalChunks {
                 record.receivedChunks.append(
-                    WatchConnectivityManager.ChunkFile(
+                    ChunkFile(
                         chunkIndex: i, fileName: "c\(i).cbor"
                     )
                 )
@@ -675,16 +675,16 @@ struct TimeseriesViewTests {
 @MainActor
 struct ChunkListViewTests {
 
-    private func makeRecordWithChunks() -> WatchConnectivityManager.WorkoutRecord {
-        var record = WatchConnectivityManager.WorkoutRecord(
+    private func makeRecordWithChunks() -> WorkoutRecord {
+        var record = WorkoutRecord(
             workoutId: "chunklist_test",
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 100,
             totalChunks: 4
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
-            WatchConnectivityManager.ChunkFile(chunkIndex: 1, fileName: "c1.cbor"),
+            ChunkFile(chunkIndex: 0, fileName: "c0.cbor"),
+            ChunkFile(chunkIndex: 1, fileName: "c1.cbor"),
         ]
         record.failedChunks = [2]
         return record

@@ -621,4 +621,34 @@ struct PhoneConnectivityManagerTests {
             RetransmissionResponse(dictionary: [:]) == nil
         )
     }
+
+    @Test func chunkFileURL() {
+        let chunk = ChunkFile(chunkIndex: 0, fileName: "test.cbor")
+        let docs = FileManager.default.urls(
+            for: .documentDirectory, in: .userDomainMask
+        ).first!
+        #expect(chunk.fileURL == docs.appendingPathComponent("test.cbor"))
+    }
+
+    @Test func chunkTransferInfoMetadata() {
+        let date = Date(timeIntervalSince1970: 1_000_000)
+        var info = ChunkTransferInfo(
+            workoutId: "w1",
+            chunkIndex: 2,
+            totalChunks: 5,
+            startDate: date,
+            totalSampleCount: 42
+        )
+        info.fileName = "chunk2.cbor"
+        info.chunkSizeBytes = 8192
+
+        let meta = info.metadata()
+        #expect(meta["fileName"] as? String == "chunk2.cbor")
+        #expect(meta["workoutId"] as? String == "w1")
+        #expect(meta["chunkIndex"] as? Int == 2)
+        #expect(meta["totalChunks"] as? Int == 5)
+        #expect(meta["startDate"] as? Double == 1_000_000)
+        #expect(meta["totalSampleCount"] as? Int == 42)
+        #expect(meta["chunkSizeBytes"] as? Int64 == 8192)
+    }
 }

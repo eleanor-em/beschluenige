@@ -287,7 +287,7 @@ struct DecodeWorkoutTests {
         try buildTestCBOR().write(to: docURL)
         defer { try? FileManager.default.removeItem(at: docURL) }
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(timeIntervalSince1970: 1000),
             totalSampleCount: 4,

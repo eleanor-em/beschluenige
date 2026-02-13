@@ -15,7 +15,7 @@ struct PersistenceTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "loadtest_\(UUID().uuidString)"
 
-        let record = WatchConnectivityManager.WorkoutRecord(
+        let record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(timeIntervalSince1970: 1_700_000_000),
             totalSampleCount: 10,
@@ -88,7 +88,7 @@ struct DecodeAndMergeTests {
         enc.encodeBreak()
 
         var buckets: [[[Double]]] = [[], [], [], []]
-        let result = WatchConnectivityManager.WorkoutRecord.decodeChunk(
+        let result = WorkoutRecord.decodeChunk(
             enc.data,
             into: &buckets,
             fileName: "test.cbor",
@@ -99,7 +99,7 @@ struct DecodeAndMergeTests {
 
     @Test func decodeChunkCorruptCBOR() {
         var buckets: [[[Double]]] = [[], [], [], []]
-        let result = WatchConnectivityManager.WorkoutRecord.decodeChunk(
+        let result = WorkoutRecord.decodeChunk(
             Data([0xFF, 0xFE]),
             into: &buckets,
             fileName: "corrupt.cbor",
@@ -116,7 +116,7 @@ struct DecodeAndMergeTests {
         enc.encodeFloat64Array([1000.0, 80.0])
 
         var buckets: [[[Double]]] = [[], [], [], []]
-        let result = WatchConnectivityManager.WorkoutRecord.decodeChunk(
+        let result = WorkoutRecord.decodeChunk(
             enc.data,
             into: &buckets,
             fileName: "unknown_key.cbor",
@@ -149,14 +149,14 @@ struct DecodeAndMergeTests {
         try FileManager.default.createDirectory(at: mergedPath, withIntermediateDirectories: false)
         defer { try? FileManager.default.removeItem(at: mergedPath) }
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
 
         record.mergeChunks(logger: testLogger)
@@ -167,14 +167,14 @@ struct DecodeAndMergeTests {
     @Test func mergeChunksHandlesUnreadableFile() {
         let workoutId = "unreadable_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(
+            ChunkFile(
                 chunkIndex: 0,
                 fileName: "nonexistent_\(UUID().uuidString).cbor"
             ),
@@ -198,7 +198,7 @@ struct DecodeAndMergeTests {
         try Data([0xFF, 0xFE]).write(to: docURL)
         defer { try? FileManager.default.removeItem(at: docURL) }
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(timeIntervalSince1970: 1000),
             totalSampleCount: 4,
@@ -229,7 +229,7 @@ struct DecodeAndMergeTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "skip_decoded_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -257,7 +257,7 @@ struct DecodeAndMergeTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "skip_nomerge_\(UUID().uuidString)"
 
-        let record = WatchConnectivityManager.WorkoutRecord(
+        let record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -274,7 +274,7 @@ struct DecodeAndMergeTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "skip_progress_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -296,7 +296,7 @@ struct DecodeAndMergeTests {
         let manager = WatchConnectivityManager.shared
         let workoutId = "skip_nofile_\(UUID().uuidString)"
 
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
@@ -530,14 +530,14 @@ struct DecodeAndMergeTests {
         let size = Int64(chunkData.count)
 
         // Create record with chunk received but NOT merged
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
         record.manifest = TransferManifest(
             workoutId: workoutId,
@@ -580,14 +580,14 @@ struct DecodeAndMergeTests {
         let size = Int64(corruptData.count)
 
         // Record with all chunks received but merge will fail (corrupt data)
-        var record = WatchConnectivityManager.WorkoutRecord(
+        var record = WorkoutRecord(
             workoutId: workoutId,
             startDate: Date(),
             totalSampleCount: 10,
             totalChunks: 1
         )
         record.receivedChunks = [
-            WatchConnectivityManager.ChunkFile(chunkIndex: 0, fileName: chunkFileName),
+            ChunkFile(chunkIndex: 0, fileName: chunkFileName),
         ]
         record.manifest = TransferManifest(
             workoutId: workoutId,

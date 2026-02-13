@@ -26,7 +26,7 @@ struct BeschluenigeApp: App {
             id: completeId, startDate: startDate
         )
 
-        var incomplete = WatchConnectivityManager.WorkoutRecord(
+        var incomplete = WorkoutRecord(
             workoutId: incompleteId,
             startDate: startDate.addingTimeInterval(3600),
             totalSampleCount: 200,
@@ -38,7 +38,7 @@ struct BeschluenigeApp: App {
         incomplete.fileSizeBytes = 150
 
         let mergingId = "UITEST-merging"
-        var merging = WatchConnectivityManager.WorkoutRecord(
+        var merging = WorkoutRecord(
             workoutId: mergingId,
             startDate: startDate.addingTimeInterval(7200),
             totalSampleCount: 100,
@@ -93,8 +93,8 @@ struct BeschluenigeApp: App {
     private func makeCompleteWorkout(
         id: String,
         startDate: Date
-    ) -> (WatchConnectivityManager.WorkoutRecord, [[Double]]) {
-        var record = WatchConnectivityManager.WorkoutRecord(
+    ) -> (WorkoutRecord, [[Double]]) {
+        var record = WorkoutRecord(
             workoutId: id,
             startDate: startDate,
             totalSampleCount: 100,
