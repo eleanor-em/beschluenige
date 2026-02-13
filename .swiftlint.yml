@@ -9,5 +9,5 @@ file_length:
   error: 1000
 
 type_body_length:
-  warning: 500
-  error: 500
+  warning: 600
+  error: 600

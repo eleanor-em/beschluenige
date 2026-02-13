@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import Synchronization
 import WatchConnectivity
 
 @Observable
@@ -17,13 +18,17 @@ final class WatchConnectivityManager: NSObject {
     private let session = WCSession.default
     private let logger = AppLogger(category: "Connectivity")
 
+    var lastWatchReachableStatus = true
+    var lastWatchNotReachable: Date?
+
     @ObservationIgnored
-    var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse =
+    lazy var sendRetransmissionRequest: (RetransmissionRequest) async throws -> RetransmissionResponse =
         defaultSendRetransmissionRequest
 
-    nonisolated static func defaultSendRetransmissionRequest(
+    nonisolated func defaultSendRetransmissionRequest(
         _ request: RetransmissionRequest
     ) async throws -> RetransmissionResponse {
+        logger.info("sendRetransmissionRequest(): \(request.toDictionary())")
         #if targetEnvironment(simulator)
         throw RetransmissionError.unexpectedReply
         #else
@@ -42,8 +47,28 @@ final class WatchConnectivityManager: NSObject {
     }
 
     @ObservationIgnored
-    var isWatchReachable: () -> Bool = {
-        WCSession.default.isReachable
+    var rawIsReachable: () -> Bool = { WCSession.default.isReachable }
+
+    @ObservationIgnored
+    var isWCSessionSupported: () -> Bool = { WCSession.isSupported() }
+
+    func isWatchReachable() -> Bool {
+        let reachable = rawIsReachable()
+        let now = Date()
+        if !reachable {
+            if lastWatchNotReachable == nil {
+                lastWatchNotReachable = Date(timeIntervalSince1970: 0)
+            }
+            if now.timeIntervalSince(lastWatchNotReachable!) > 60 {
+                logger.warning("watch not reachable")
+            }
+            lastWatchNotReachable = now
+        }
+        if !lastWatchReachableStatus && reachable {
+            logger.info("watch reachable!")
+        }
+        lastWatchReachableStatus = reachable
+        return reachable
     }
 
     private override init() {
@@ -51,13 +76,18 @@ final class WatchConnectivityManager: NSObject {
     }
 
     func activate() {
-        guard WCSession.isSupported() else { return }
+        guard isWCSessionSupported() else {
+            logger.warning("WCSession: !isSupported()")
+            return
+        }
+        logger.info("activate()")
         session.delegate = self
         session.activate()
         loadWorkouts()
     }
 
     func deleteWorkout(_ record: WorkoutRecord) {
+        logger.info("deleteWorkout(): \(record.workoutId)")
         if let mergedURL = record.mergedFileURL {
             do {
                 try FileManager.default.removeItem(at: mergedURL)
@@ -102,10 +132,20 @@ final class WatchConnectivityManager: NSObject {
         decodingErrors.removeValue(forKey: workoutId)
 
         Task.detached { [self] in
+            let lastLoggedPercent = Mutex(0)
             do {
                 let (summary, timeseries) = try await Self.streamDecode(
                     from: url
                 ) { p, s, ts in
+                    let percent = Int(p * 100.0)
+                    let shouldLog = lastLoggedPercent.withLock { last in
+                        guard percent > last && percent.isMultiple(of: 20) else { return false }
+                        last = percent
+                        return true
+                    }
+                    if shouldLog {
+                        logger.info("streamDecode(): \(workoutId): \(percent)%")
+                    }
                     await MainActor.run {
                         self.decodingProgress[workoutId] = p
                         self.decodedSummaries[workoutId] = s
@@ -189,6 +229,7 @@ final class WatchConnectivityManager: NSObject {
     }
 
     func processChunk(_ info: ChunkTransferInfo) {
+        logger.info("mergeChunksAsync(): \(info.workoutId) (\(info.chunkIndex)/\(info.totalChunks))")
         var idx = workouts.firstIndex(where: { $0.workoutId == info.workoutId })
 
         if idx == nil {
@@ -212,6 +253,7 @@ final class WatchConnectivityManager: NSObject {
     }
 
     func mergeChunksAsync(workoutId: String) {
+        logger.info("mergeChunksAsync(): \(workoutId)")
         guard !mergingWorkouts.contains(workoutId) else { return }
         guard let idx = workouts.firstIndex(where: { $0.workoutId == workoutId }),
               workouts[idx].isComplete,
@@ -279,6 +321,7 @@ final class WatchConnectivityManager: NSObject {
     }
 
     func applyManifest(_ manifest: TransferManifest, workoutId: String) {
+        logger.info("applyManifest(): \(workoutId)")
         var idx = workouts.firstIndex(where: { $0.workoutId == workoutId })
 
         if idx == nil {

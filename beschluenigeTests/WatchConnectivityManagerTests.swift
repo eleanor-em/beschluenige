@@ -490,7 +490,7 @@ struct DecodeAndMergeTests {
             needsManifest: false
         )
         do {
-            _ = try await WatchConnectivityManager.defaultSendRetransmissionRequest(request)
+            _ = try await WatchConnectivityManager.shared.defaultSendRetransmissionRequest(request)
             Issue.record("Expected throw")
         } catch {
             // Expected: throws RetransmissionError.unexpectedReply on simulator
@@ -499,14 +499,36 @@ struct DecodeAndMergeTests {
 
     @Test func defaultIsWatchReachable() {
         let manager = WatchConnectivityManager.shared
-        let saved = manager.isWatchReachable
-        defer { manager.isWatchReachable = saved }
-
-        // Reset to the real default
-        manager.isWatchReachable = { WCSession.default.isReachable }
         let result = manager.isWatchReachable()
         // In simulator, watch is not reachable
         #expect(!result)
+    }
+
+    @Test func isWatchReachableLogsWhenReachableAfterUnreachable() {
+        let manager = WatchConnectivityManager.shared
+        let savedStatus = manager.lastWatchReachableStatus
+        let savedRaw = manager.rawIsReachable
+        defer {
+            manager.lastWatchReachableStatus = savedStatus
+            manager.rawIsReachable = savedRaw
+        }
+
+        // Simulate transition from unreachable to reachable
+        manager.lastWatchReachableStatus = false
+        manager.rawIsReachable = { true }
+        let result = manager.isWatchReachable()
+        #expect(result)
+        #expect(manager.lastWatchReachableStatus)
+    }
+
+    @Test func activateEarlyReturnsWhenNotSupported() {
+        let manager = WatchConnectivityManager.shared
+        let saved = manager.isWCSessionSupported
+        defer { manager.isWCSessionSupported = saved }
+
+        manager.isWCSessionSupported = { false }
+        // Should return immediately without crashing
+        manager.activate()
     }
 
     // MARK: - requestRetransmission nothingToRequest paths

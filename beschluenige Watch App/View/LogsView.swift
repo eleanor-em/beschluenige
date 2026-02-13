@@ -54,7 +54,7 @@ struct LogsView: View {
                 Text("No log entries")
                     .foregroundStyle(.secondary)
             } else {
-                ForEach(store.entries) { entry in
+                ForEach(store.entries.reversed()) { entry in
                     LogEntryRow(entry: entry)
                 }
             }

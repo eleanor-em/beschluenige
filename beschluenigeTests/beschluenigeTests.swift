@@ -314,13 +314,13 @@ struct WatchConnectivityManagerTests {
         let chunk = makeCborChunk(hrTimestamp: 4000, hrBpm: 140)
         try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
 
-        let saved = manager.isWatchReachable
-        manager.isWatchReachable = { false }
+        let saved = manager.rawIsReachable
+        manager.rawIsReachable = { false }
 
         let result = await manager.requestRetransmission(workoutId: workoutId)
         #expect(result == .unreachable)
 
-        manager.isWatchReachable = saved
+        manager.rawIsReachable = saved
         if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
             manager.deleteWorkout(record)
         }
@@ -333,15 +333,15 @@ struct WatchConnectivityManagerTests {
         let chunk = makeCborChunk(hrTimestamp: 5000, hrBpm: 150)
         try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
 
-        let savedReachable = manager.isWatchReachable
+        let savedReachable = manager.rawIsReachable
         let savedSend = manager.sendRetransmissionRequest
-        manager.isWatchReachable = { true }
+        manager.rawIsReachable = { true }
         manager.sendRetransmissionRequest = { _ in .accepted }
 
         let result = await manager.requestRetransmission(workoutId: workoutId)
         #expect(result == .accepted)
 
-        manager.isWatchReachable = savedReachable
+        manager.rawIsReachable = savedReachable
         manager.sendRetransmissionRequest = savedSend
         if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
             manager.deleteWorkout(record)
@@ -355,15 +355,15 @@ struct WatchConnectivityManagerTests {
         let chunk = makeCborChunk(hrTimestamp: 6000, hrBpm: 160)
         try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
 
-        let savedReachable = manager.isWatchReachable
+        let savedReachable = manager.rawIsReachable
         let savedSend = manager.sendRetransmissionRequest
-        manager.isWatchReachable = { true }
+        manager.rawIsReachable = { true }
         manager.sendRetransmissionRequest = { _ in .denied }
 
         let result = await manager.requestRetransmission(workoutId: workoutId)
         #expect(result == .denied)
 
-        manager.isWatchReachable = savedReachable
+        manager.rawIsReachable = savedReachable
         manager.sendRetransmissionRequest = savedSend
         if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
             manager.deleteWorkout(record)
@@ -377,15 +377,15 @@ struct WatchConnectivityManagerTests {
         let chunk = makeCborChunk(hrTimestamp: 7000, hrBpm: 170)
         try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
 
-        let savedReachable = manager.isWatchReachable
+        let savedReachable = manager.rawIsReachable
         let savedSend = manager.sendRetransmissionRequest
-        manager.isWatchReachable = { true }
+        manager.rawIsReachable = { true }
         manager.sendRetransmissionRequest = { _ in .notFound }
 
         let result = await manager.requestRetransmission(workoutId: workoutId)
         #expect(result == .notFound)
 
-        manager.isWatchReachable = savedReachable
+        manager.rawIsReachable = savedReachable
         manager.sendRetransmissionRequest = savedSend
         if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
             manager.deleteWorkout(record)
@@ -399,15 +399,15 @@ struct WatchConnectivityManagerTests {
         let chunk = makeCborChunk(hrTimestamp: 8000, hrBpm: 180)
         try await sendChunk(manager, data: chunk, workoutId: workoutId, index: 0, totalChunks: 2)
 
-        let savedReachable = manager.isWatchReachable
+        let savedReachable = manager.rawIsReachable
         let savedSend = manager.sendRetransmissionRequest
-        manager.isWatchReachable = { true }
+        manager.rawIsReachable = { true }
         manager.sendRetransmissionRequest = { _ in throw NSError(domain: "test", code: 42) }
 
         let result = await manager.requestRetransmission(workoutId: workoutId)
         #expect(result == .unreachable)
 
-        manager.isWatchReachable = savedReachable
+        manager.rawIsReachable = savedReachable
         manager.sendRetransmissionRequest = savedSend
         if let record = manager.workouts.first(where: { $0.workoutId == workoutId }) {
             manager.deleteWorkout(record)
